@@ -51,6 +51,7 @@ The initial configuration schema is:
     "peer": "chain01.stn-chain.org",
     "port": 18473
 }
+```
 
 ### Architecture
 
