@@ -119,3 +119,9 @@ Platform Interface
         |                |
         v                v
      Windows           Linux
+~~~
+
+## Documentation
+[CHANGELOG](/docs/CHANGELOG.md)
+[ROADMAP](/docs/ROADMAP.md)
+[CONTRIBUTING](/docs/CONTRIBUTING.md)
