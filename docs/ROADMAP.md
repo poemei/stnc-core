@@ -100,11 +100,13 @@ Operate
 
 # 4. Phase 1 — Core Runtime Foundation
 
+**Status: ACTIVE — Implementation and Qualification**
+
 The first development phase establishes the actual STNC Core application architecture.
 
 This replaces the previous CLI prototype as the architectural starting point.
 
-The runtime should establish bounded services for:
+The runtime establishes bounded services for:
 
 ```text
 STNC Core

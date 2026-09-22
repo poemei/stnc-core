@@ -1,3 +1,6 @@
+### CHANGELOG.md
+
+markdown
 # STNC Core Changelog
 
 All notable development changes to STNC Core are documented here.
@@ -10,24 +13,44 @@ STNC Core is currently under active development. Development versions do not rep
 
 ### Added
 
-- Initial STNC Core project runtime.
-- Core application lifecycle with explicit runtime states:
+- Initial STNC Core runtime.
+- Explicit runtime states:
   - `UNINITIALIZED`
   - `INITIALIZED`
   - `RUNNING`
   - `STOPPING`
   - `STOPPED`
 - Controlled runtime initialization.
-- Controlled runtime execution.
+- Persistent runtime execution.
 - Controlled runtime shutdown.
 - Runtime stop-request interface.
 - Runtime state query interface.
-- Initial platform abstraction interface.
+- Platform abstraction interface.
 - Initial Windows platform backend.
 - Windows platform initialization and shutdown lifecycle.
+- Windows console stop handling.
+- Operator-requested shutdown using `Ctrl+C`.
+- Portable runtime logging.
+- Information, warning, and error logging interfaces.
+- Persistent local configuration subsystem.
+- Executable-relative `config.json`.
+- Automatic default configuration creation when `config.json` is absent.
+- Existing configuration loading and validation.
+- Configurable `peer`.
+- Configurable `port`.
 - Command-line Windows build using `build.cmd`.
 - Build output to `build\stnc-core.exe`.
 - `/W4` compiler warning level for development builds.
+
+### Configuration
+
+The initial configuration schema is:
+
+```json
+{
+    "peer": "chain01.stn-chain.org",
+    "port": 18473
+}
 
 ### Architecture
 
