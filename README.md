@@ -122,6 +122,6 @@ Platform Interface
 ~~~
 
 ## Documentation
-[CHANGELOG](/docs/CHANGELOG.md)
-[ROADMAP](/docs/ROADMAP.md)
-[CONTRIBUTING](/docs/CONTRIBUTING.md)
+- [CHANGELOG](/docs/CHANGELOG.md)
+- [ROADMAP](/docs/ROADMAP.md)
+- [CONTRIBUTING](/docs/CONTRIBUTING.md)
