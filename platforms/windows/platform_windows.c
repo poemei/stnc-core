@@ -17,6 +17,8 @@ static int platform_initialized = 0;
 static int stop_handler_installed = 0;
 static int network_initialized = 0;
 
+#define STNC_SOCKET_IO_TIMEOUT_MS 5000u
+
 static BOOL WINAPI stnc_windows_console_handler(DWORD control_type)
 {
     switch (control_type) {
@@ -211,6 +213,30 @@ int stnc_platform_network_connect(
 
     if (socket_handle == INVALID_SOCKET) {
         return 1;
+    }
+
+    {
+        DWORD timeout;
+
+        timeout = (DWORD)STNC_SOCKET_IO_TIMEOUT_MS;
+
+        if (setsockopt(
+                socket_handle,
+                SOL_SOCKET,
+                SO_SNDTIMEO,
+                (const char *)&timeout,
+                (int)sizeof(timeout)
+            ) == SOCKET_ERROR ||
+            setsockopt(
+                socket_handle,
+                SOL_SOCKET,
+                SO_RCVTIMEO,
+                (const char *)&timeout,
+                (int)sizeof(timeout)
+            ) == SOCKET_ERROR) {
+            closesocket(socket_handle);
+            return 1;
+        }
     }
 
     *handle = (void *)(uintptr_t)socket_handle;
