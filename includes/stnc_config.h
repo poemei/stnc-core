@@ -6,6 +6,8 @@
 typedef struct stnc_config {
     char peer[STNC_CONFIG_PEER_MAX];
     unsigned short port;
+    char root_peer[STNC_CONFIG_PEER_MAX];
+    unsigned short root_peer_port;
 } stnc_config;
 
 /*
