@@ -35,6 +35,7 @@ cl /nologo /W4 /TC /Iincludes ^
     src\stnc_config.c ^
     src\stnc_network.c ^
     src\stnc_stnc.c ^
+    src\stnc_stnp.c ^
     platforms\windows\platform_windows.c ^
     /Fe:build\stnc-core.exe ^
     /link ws2_32.lib
@@ -47,6 +48,20 @@ if errorlevel 1 (
 
 echo.
 echo BUILD SUCCESSFUL
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_stnp.c src\stnc_stnp.c /Fe:build\test-stnc-stnp.exe
+if errorlevel 1 (
+    echo.
+    echo TEST BUILD FAILED
+    exit /b 1
+)
+
+build\test-stnc-stnp.exe
+if errorlevel 1 (
+    echo.
+    echo TEST FAILED
+    exit /b 1
+)
+
 echo build\stnc-core.exe
 
 endlocal
