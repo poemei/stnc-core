@@ -6,6 +6,7 @@
 
 #define STNC_STNC_HEADER_SIZE 24u
 #define STNC_STNC_INFO_SIZE 184u
+#define STNC_STNC_ADDRESS_SIZE 69u
 
 #define STNC_STNC_VERSION 2u
 
@@ -15,6 +16,9 @@
 #define STNC_STNC_OK 0u
 
 #define STNC_STNC_METHOD_INFO 1u
+#define STNC_STNC_METHOD_DERIVE_ADDRESS 9u
+
+#define STNC_STNC_ADDRESS_IDENTITY 1u
 
 typedef struct stnc_stnc_message {
     uint16_t kind;
@@ -53,6 +57,16 @@ int stnc_stnc_decode_info(
     const uint8_t *payload,
     size_t length,
     stnc_chain_info *info
+);
+
+void stnc_stnc_write_u16(
+    uint8_t *buffer,
+    uint16_t value
+);
+
+void stnc_stnc_write_u32(
+    uint8_t *buffer,
+    uint32_t value
 );
 
 #endif
