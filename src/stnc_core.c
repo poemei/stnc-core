@@ -1,11 +1,180 @@
+#include <inttypes.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "stnc_config.h"
 #include "stnc_core.h"
 #include "stnc_log.h"
+#include "stnc_network.h"
 #include "stnc_platform.h"
+#include "stnc_stnc.h"
+
+#define STNC_INFO_REQUEST_ID UINT64_C(1)
+#define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
+#define STNC_RUNTIME_WAIT_MS 100u
 
 static stnc_core_state core_state = STNC_CORE_STATE_UNINITIALIZED;
+static stnc_network_connection chain_connection;
+static stnc_core_chain_state chain_state;
+
+static void stnc_core_clear_chain_state(void)
+{
+    memset(&chain_state, 0, sizeof(chain_state));
+}
+
+static void stnc_core_store_chain_info(const stnc_chain_info *info)
+{
+    if (info == NULL) {
+        return;
+    }
+
+    stnc_core_clear_chain_state();
+
+    memcpy(chain_state.network_id, info->network_id, sizeof(chain_state.network_id));
+    memcpy(chain_state.genesis_id, info->genesis_id, sizeof(chain_state.genesis_id));
+    chain_state.height = info->height;
+    memcpy(chain_state.tip_id, info->tip_id, sizeof(chain_state.tip_id));
+    memcpy(chain_state.cumulative_work, info->cumulative_work, sizeof(chain_state.cumulative_work));
+    memcpy(chain_state.current_target, info->current_target, sizeof(chain_state.current_target));
+    chain_state.protocol_revision = info->protocol_revision;
+    chain_state.block_count = info->block_count;
+    chain_state.available = 1;
+}
+
+static int stnc_core_request_chain_info(int log_request)
+{
+    stnc_stnc_message request;
+    stnc_stnc_message response;
+    stnc_chain_info info;
+    unsigned char request_buffer[STNC_STNC_HEADER_SIZE];
+    unsigned char response_header[STNC_STNC_HEADER_SIZE];
+    unsigned char response_payload[STNC_STNC_INFO_SIZE];
+    size_t request_length;
+    char message[512];
+
+    memset(&request, 0, sizeof(request));
+    memset(&response, 0, sizeof(response));
+    memset(&info, 0, sizeof(info));
+
+    request.kind = STNC_STNC_REQUEST;
+    request.method = STNC_STNC_METHOD_INFO;
+    request.code = STNC_STNC_OK;
+    request.request_id = STNC_INFO_REQUEST_ID;
+
+    if (stnc_stnc_encode(&request, request_buffer, sizeof(request_buffer), &request_length) != 0) {
+        stnc_log_error("STNC INFO request encoding failed.");
+        return 1;
+    }
+
+    if (request_length != STNC_STNC_HEADER_SIZE) {
+        stnc_log_error("STNC INFO request length is invalid.");
+        return 1;
+    }
+
+    if (log_request) {
+        stnc_log_info("Sending STNC INFO request.");
+    }
+
+    if (stnc_network_send(&chain_connection, request_buffer, request_length) != 0) {
+        stnc_log_error("STNC INFO request transmission failed.");
+        return 1;
+    }
+
+    if (stnc_network_receive(&chain_connection, response_header, sizeof(response_header)) != 0) {
+        stnc_log_error("STNC INFO response header receive failed.");
+        return 1;
+    }
+
+    if (stnc_stnc_decode_header(response_header, sizeof(response_header), &response) != 0) {
+        stnc_log_error("STNC INFO response header is invalid.");
+        return 1;
+    }
+
+    if (response.kind != STNC_STNC_RESPONSE) {
+        stnc_log_error("STNC INFO response kind is invalid.");
+        return 1;
+    }
+
+    if (response.method != STNC_STNC_METHOD_INFO) {
+        stnc_log_error("STNC INFO response method does not match request.");
+        return 1;
+    }
+
+    if (response.request_id != STNC_INFO_REQUEST_ID) {
+        stnc_log_error("STNC INFO response request ID does not match request.");
+        return 1;
+    }
+
+    if (response.code != STNC_STNC_OK) {
+        if (snprintf(message, sizeof(message), "STNC INFO request rejected: code=%u",
+                (unsigned int)response.code) < 0) {
+            return 1;
+        }
+        stnc_log_error(message);
+        return 1;
+    }
+
+    if (response.length != STNC_STNC_INFO_SIZE) {
+        if (snprintf(message, sizeof(message), "STNC INFO response payload length is invalid: %zu",
+                response.length) < 0) {
+            return 1;
+        }
+        stnc_log_error(message);
+        return 1;
+    }
+
+    if (stnc_network_receive(&chain_connection, response_payload, sizeof(response_payload)) != 0) {
+        stnc_log_error("STNC INFO response payload receive failed.");
+        return 1;
+    }
+
+    if (stnc_stnc_decode_info(response_payload, sizeof(response_payload), &info) != 0) {
+        stnc_log_error("STNC INFO response payload is invalid.");
+        return 1;
+    }
+
+    stnc_core_store_chain_info(&info);
+
+    if (log_request) {
+        if (snprintf(message, sizeof(message),
+                "STNC v2 confirmed: height=%" PRIu64 " blocks=%" PRIu32 " protocol=%" PRIu32,
+                chain_state.height, chain_state.block_count, chain_state.protocol_revision) < 0) {
+            stnc_core_clear_chain_state();
+            return 1;
+        }
+        stnc_log_info(message);
+    }
+
+    return 0;
+}
+
+static int stnc_core_refresh_chain_state(void)
+{
+    uint64_t previous_height;
+    uint32_t previous_block_count;
+    char message[512];
+
+    previous_height = chain_state.height;
+    previous_block_count = chain_state.block_count;
+
+    if (stnc_core_request_chain_info(0) != 0) {
+        stnc_core_clear_chain_state();
+        stnc_log_error("Chain state refresh failed.");
+        return 1;
+    }
+
+    if (chain_state.height != previous_height ||
+        chain_state.block_count != previous_block_count) {
+        if (snprintf(message, sizeof(message),
+                "Chain state updated: height=%" PRIu64 " blocks=%" PRIu32,
+                chain_state.height, chain_state.block_count) < 0) {
+            return 1;
+        }
+        stnc_log_info(message);
+    }
+
+    return 0;
+}
 
 int stnc_core_init(void)
 {
@@ -15,6 +184,8 @@ int stnc_core_init(void)
     if (core_state != STNC_CORE_STATE_UNINITIALIZED) {
         return 1;
     }
+
+    stnc_core_clear_chain_state();
 
     if (stnc_platform_init() != 0) {
         return 1;
@@ -26,76 +197,103 @@ int stnc_core_init(void)
     }
 
     if (stnc_config_init() != 0) {
-        stnc_log_error(
-            "STNC Core configuration initialization failed."
-        );
-
+        stnc_log_error("STNC Core configuration initialization failed.");
         stnc_log_shutdown();
         stnc_platform_shutdown();
-
         return 1;
     }
 
     config = stnc_config_get();
 
     if (config == NULL) {
-        stnc_log_error(
-            "STNC Core configuration is unavailable."
-        );
-
+        stnc_log_error("STNC Core configuration is unavailable.");
         stnc_config_shutdown();
         stnc_log_shutdown();
         stnc_platform_shutdown();
-
         return 1;
     }
 
-    if (snprintf(
-            message,
-            sizeof(message),
-            "Configuration loaded: peer=%s port=%u",
-            config->peer,
-            (unsigned int)config->port
-        ) < 0) {
+    if (snprintf(message, sizeof(message), "Configuration loaded: peer=%s port=%u",
+            config->peer, (unsigned int)config->port) < 0) {
         stnc_config_shutdown();
         stnc_log_shutdown();
         stnc_platform_shutdown();
+        return 1;
+    }
 
+    if (stnc_network_init() != 0) {
+        stnc_log_error("STNC Core network initialization failed.");
+        stnc_config_shutdown();
+        stnc_log_shutdown();
+        stnc_platform_shutdown();
         return 1;
     }
 
     if (stnc_platform_install_stop_handler() != 0) {
-        stnc_log_error(
-            "STNC Core stop handler initialization failed."
-        );
-
+        stnc_log_error("STNC Core stop handler initialization failed.");
+        stnc_network_shutdown();
         stnc_config_shutdown();
         stnc_log_shutdown();
         stnc_platform_shutdown();
-
         return 1;
     }
 
     core_state = STNC_CORE_STATE_INITIALIZED;
-
     stnc_log_info("STNC Core initialized.");
     stnc_log_info(message);
+    stnc_log_info("Connecting to configured Chain peer.");
+
+    if (stnc_network_connect(&chain_connection, config->peer, config->port) != 0) {
+        stnc_log_error("Chain connection failed.");
+        stnc_network_shutdown();
+        stnc_config_shutdown();
+        stnc_log_shutdown();
+        stnc_platform_shutdown();
+        core_state = STNC_CORE_STATE_UNINITIALIZED;
+        return 1;
+    }
+
+    stnc_log_info("Chain connection established.");
+
+    if (stnc_core_request_chain_info(1) != 0) {
+        stnc_log_error("Configured peer failed STNC v2 qualification.");
+        stnc_core_clear_chain_state();
+        stnc_network_disconnect(&chain_connection);
+        stnc_network_shutdown();
+        stnc_config_shutdown();
+        stnc_log_shutdown();
+        stnc_platform_shutdown();
+        core_state = STNC_CORE_STATE_UNINITIALIZED;
+        return 1;
+    }
+
+    stnc_log_info("Configured Chain peer qualified.");
 
     return 0;
 }
 
 int stnc_core_run(void)
 {
+    unsigned int elapsed;
+
     if (core_state != STNC_CORE_STATE_INITIALIZED) {
         return 1;
     }
 
     core_state = STNC_CORE_STATE_RUNNING;
-
+    elapsed = 0;
     stnc_log_info("STNC Core running.");
 
     while (core_state == STNC_CORE_STATE_RUNNING) {
-        stnc_platform_wait(100);
+        stnc_platform_wait(STNC_RUNTIME_WAIT_MS);
+        elapsed += STNC_RUNTIME_WAIT_MS;
+
+        if (elapsed >= STNC_CHAIN_REFRESH_INTERVAL_MS) {
+            elapsed = 0;
+            if (stnc_core_refresh_chain_state() != 0) {
+                stnc_log_error("Chain state is unavailable.");
+            }
+        }
     }
 
     return 0;
@@ -108,7 +306,6 @@ void stnc_core_request_stop(void)
     }
 
     core_state = STNC_CORE_STATE_STOPPING;
-
     stnc_log_info("STNC Core stop requested.");
 }
 
@@ -121,14 +318,25 @@ void stnc_core_shutdown(void)
 
     stnc_log_info("STNC Core shutting down.");
 
+    if (stnc_network_is_connected(&chain_connection)) {
+        stnc_network_disconnect(&chain_connection);
+        stnc_log_info("Chain connection closed.");
+    }
+
+    stnc_core_clear_chain_state();
+    stnc_network_shutdown();
     stnc_config_shutdown();
     stnc_log_shutdown();
     stnc_platform_shutdown();
-
     core_state = STNC_CORE_STATE_STOPPED;
 }
 
 stnc_core_state stnc_core_get_state(void)
 {
     return core_state;
+}
+
+const stnc_core_chain_state *stnc_core_get_chain_state(void)
+{
+    return &chain_state;
 }
