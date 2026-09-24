@@ -13,6 +13,8 @@
 
 #define STNC_DEFAULT_PEER "chain01.stn-chain.org"
 #define STNC_DEFAULT_PORT 18473
+#define STNC_DEFAULT_ROOT_PEER "chain01.stn-chain.org"
+#define STNC_DEFAULT_ROOT_PEER_PORT 18474
 
 #define STNC_CONFIG_PATH_MAX 1024
 #define STNC_CONFIG_FILE_MAX 4096
@@ -39,6 +41,20 @@ static int stnc_config_set_defaults(void)
     );
 
     active_config.port = STNC_DEFAULT_PORT;
+
+    peer_length = strlen(STNC_DEFAULT_ROOT_PEER);
+
+    if (peer_length >= sizeof(active_config.root_peer)) {
+        return 1;
+    }
+
+    memcpy(
+        active_config.root_peer,
+        STNC_DEFAULT_ROOT_PEER,
+        peer_length + 1
+    );
+
+    active_config.root_peer_port = STNC_DEFAULT_ROOT_PEER_PORT;
 
     return 0;
 }
@@ -86,10 +102,14 @@ static int stnc_config_write_defaults(const char *path)
             file,
             "{\n"
             "    \"peer\": \"%s\",\n"
-            "    \"port\": %u\n"
+            "    \"port\": %u,\n"
+            "    \"root_peer\": \"%s\",\n"
+            "    \"root_peer_port\": %u\n"
             "}\n",
             active_config.peer,
-            (unsigned int)active_config.port
+            (unsigned int)active_config.port,
+            active_config.root_peer,
+            (unsigned int)active_config.root_peer_port
         ) < 0) {
         fclose(file);
         return 1;
@@ -189,8 +209,9 @@ static int stnc_config_validate_document(const char *json)
     return 0;
 }
 
-static int stnc_config_parse_peer(
+static int stnc_config_parse_named_peer(
     const char *json,
+    const char *name,
     char *peer,
     size_t peer_size
 )
@@ -199,7 +220,7 @@ static int stnc_config_parse_peer(
     const char *end;
     size_t length;
 
-    value = stnc_config_find_value(json, "peer");
+    value = stnc_config_find_value(json, name);
 
     if (value == NULL || *value != '"') {
         return 1;
@@ -225,8 +246,9 @@ static int stnc_config_parse_peer(
     return 0;
 }
 
-static int stnc_config_parse_port(
+static int stnc_config_parse_named_port(
     const char *json,
+    const char *name,
     unsigned short *port
 )
 {
@@ -234,7 +256,7 @@ static int stnc_config_parse_port(
     char *end;
     unsigned long parsed;
 
-    value = stnc_config_find_value(json, "port");
+    value = stnc_config_find_value(json, name);
 
     if (value == NULL ||
         !isdigit((unsigned char)*value)) {
@@ -308,19 +330,57 @@ static int stnc_config_load(const char *path)
         return 1;
     }
 
-    if (stnc_config_parse_peer(
+    if (stnc_config_parse_named_peer(
             json,
+            "peer",
             active_config.peer,
             sizeof(active_config.peer)
         ) != 0) {
         return 1;
     }
 
-    if (stnc_config_parse_port(
+    if (stnc_config_parse_named_port(
             json,
+            "port",
             &active_config.port
         ) != 0) {
         return 1;
+    }
+
+    if (stnc_config_find_value(json, "root_peer") == NULL &&
+        stnc_config_find_value(json, "root_peer_port") == NULL) {
+        size_t root_peer_length;
+
+        root_peer_length = strlen(STNC_DEFAULT_ROOT_PEER);
+
+        if (root_peer_length >= sizeof(active_config.root_peer)) {
+            return 1;
+        }
+
+        memcpy(
+            active_config.root_peer,
+            STNC_DEFAULT_ROOT_PEER,
+            root_peer_length + 1
+        );
+
+        active_config.root_peer_port = STNC_DEFAULT_ROOT_PEER_PORT;
+    } else {
+        if (stnc_config_parse_named_peer(
+                json,
+                "root_peer",
+                active_config.root_peer,
+                sizeof(active_config.root_peer)
+            ) != 0) {
+            return 1;
+        }
+
+        if (stnc_config_parse_named_port(
+                json,
+                "root_peer_port",
+                &active_config.root_peer_port
+            ) != 0) {
+            return 1;
+        }
     }
 
     return 0;
