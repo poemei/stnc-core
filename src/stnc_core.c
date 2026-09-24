@@ -186,9 +186,15 @@ static int stnc_core_qualify_root_peer(void)
     const stnc_config *config;
     stnc_network_connection connection;
     stnc_stnp_hello hello;
-    uint8_t request[STNC_STNP_HEADER_SIZE + STNC_STNP_HELLO_SIZE];
-    uint8_t response[STNC_STNP_HEADER_SIZE + STNC_STNP_HELLO_SIZE];
+    stnc_stnp_peers peers;
+    uint8_t hello_request[STNC_STNP_HEADER_SIZE + STNC_STNP_HELLO_SIZE];
+    uint8_t hello_response[STNC_STNP_HEADER_SIZE + STNC_STNP_HELLO_SIZE];
+    uint8_t discovery_request[STNC_STNP_HEADER_SIZE];
+    uint8_t discovery_header[STNC_STNP_HEADER_SIZE];
+    uint8_t discovery_frame[STNC_STNP_PEERS_FRAME_MAX];
     size_t written;
+    size_t payload_length;
+    size_t index;
     char message[512];
 
     config = stnc_config_get();
@@ -200,6 +206,7 @@ static int stnc_core_qualify_root_peer(void)
 
     memset(&connection, 0, sizeof(connection));
     memset(&hello, 0, sizeof(hello));
+    memset(&peers, 0, sizeof(peers));
 
     if (snprintf(message, sizeof(message),
             "Qualifying Chain P2P root peer: %s:%u",
@@ -223,63 +230,155 @@ static int stnc_core_qualify_root_peer(void)
             chain_state.network_id,
             chain_state.genesis_id,
             1u,
-            request,
-            sizeof(request),
+            hello_request,
+            sizeof(hello_request),
             &written
-        ) != 0) {
+        ) != 0 ||
+        written != sizeof(hello_request)) {
         stnc_log_error("Chain P2P root peer HELLO ENCODE failed.");
-        stnc_network_disconnect(&connection);
-        return 1;
-    }
-
-    if (written != sizeof(request)) {
-        stnc_log_error("Chain P2P root peer HELLO ENCODE returned an unexpected frame length.");
         stnc_network_disconnect(&connection);
         return 1;
     }
     stnc_log_info("Chain P2P root peer HELLO ENCODE passed: 80 bytes.");
 
-    if (stnc_network_send(&connection, request, written) != 0) {
+    if (stnc_network_send(&connection, hello_request, written) != 0) {
         stnc_log_error("Chain P2P root peer HELLO SEND failed.");
         stnc_network_disconnect(&connection);
         return 1;
     }
     stnc_log_info("Chain P2P root peer HELLO SEND passed: 80 bytes.");
 
-    if (stnc_network_receive(&connection, response, sizeof(response)) != 0) {
+    if (stnc_network_receive(
+            &connection,
+            hello_response,
+            sizeof(hello_response)
+        ) != 0) {
         stnc_log_error("Chain P2P root peer HELLO RECEIVE failed.");
         stnc_network_disconnect(&connection);
         return 1;
     }
     stnc_log_info("Chain P2P root peer HELLO RECEIVE passed: 80 bytes.");
 
-    stnc_network_disconnect(&connection);
-
-    if (stnc_stnp_decode_hello(response, sizeof(response), &hello) != 0) {
+    if (stnc_stnp_decode_hello(
+            hello_response,
+            sizeof(hello_response),
+            &hello
+        ) != 0) {
         stnc_log_error("Chain P2P root peer HELLO DECODE failed.");
+        stnc_network_disconnect(&connection);
         return 1;
     }
     stnc_log_info("Chain P2P root peer HELLO DECODE passed.");
 
     if (memcmp(hello.network_id, chain_state.network_id, 32) != 0) {
         stnc_log_error("Chain P2P root peer NETWORK ID validation failed.");
+        stnc_network_disconnect(&connection);
         return 1;
     }
     stnc_log_info("Chain P2P root peer NETWORK ID validation passed.");
 
     if (memcmp(hello.genesis_id, chain_state.genesis_id, 32) != 0) {
         stnc_log_error("Chain P2P root peer GENESIS ID validation failed.");
+        stnc_network_disconnect(&connection);
         return 1;
     }
     stnc_log_info("Chain P2P root peer GENESIS ID validation passed.");
 
     if (hello.capabilities != 1u && hello.capabilities != 3u) {
         stnc_log_error("Chain P2P root peer CAPABILITIES validation failed.");
+        stnc_network_disconnect(&connection);
         return 1;
     }
     stnc_log_info("Chain P2P root peer CAPABILITIES validation passed.");
 
     root_peer_capabilities = hello.capabilities;
+
+    if ((root_peer_capabilities & 2u) != 0u) {
+        if (stnc_stnp_encode_get_peers(
+                discovery_request,
+                sizeof(discovery_request),
+                &written
+            ) != 0 ||
+            written != sizeof(discovery_request)) {
+            stnc_log_error("Chain P2P root peer GET_PEERS ENCODE failed.");
+            root_peer_capabilities = 0;
+            stnc_network_disconnect(&connection);
+            return 1;
+        }
+
+        if (stnc_network_send(
+                &connection,
+                discovery_request,
+                written
+            ) != 0) {
+            stnc_log_error("Chain P2P root peer GET_PEERS SEND failed.");
+            root_peer_capabilities = 0;
+            stnc_network_disconnect(&connection);
+            return 1;
+        }
+
+        if (stnc_network_receive(
+                &connection,
+                discovery_header,
+                sizeof(discovery_header)
+            ) != 0 ||
+            stnc_stnp_decode_peers_header(
+                discovery_header,
+                sizeof(discovery_header),
+                &payload_length
+            ) != 0) {
+            stnc_log_error("Chain P2P root peer PEERS header is unavailable or invalid.");
+            root_peer_capabilities = 0;
+            stnc_network_disconnect(&connection);
+            return 1;
+        }
+
+        memcpy(discovery_frame, discovery_header, sizeof(discovery_header));
+
+        if (stnc_network_receive(
+                &connection,
+                discovery_frame + STNC_STNP_HEADER_SIZE,
+                payload_length
+            ) != 0 ||
+            stnc_stnp_decode_peers(
+                discovery_frame,
+                STNC_STNP_HEADER_SIZE + payload_length,
+                &peers
+            ) != 0) {
+            stnc_log_error("Chain P2P root peer PEERS payload is unavailable or invalid.");
+            root_peer_capabilities = 0;
+            stnc_network_disconnect(&connection);
+            return 1;
+        }
+
+        if (snprintf(message, sizeof(message),
+                "Chain P2P root peer discovery received %zu candidate(s).",
+                peers.count) < 0) {
+            root_peer_capabilities = 0;
+            stnc_network_disconnect(&connection);
+            return 1;
+        }
+        stnc_log_info(message);
+
+        for (index = 0; index < peers.count; ++index) {
+            if (snprintf(message, sizeof(message),
+                    "Discovered Chain P2P candidate: %u.%u.%u.%u:%u",
+                    (unsigned int)peers.entries[index].address[0],
+                    (unsigned int)peers.entries[index].address[1],
+                    (unsigned int)peers.entries[index].address[2],
+                    (unsigned int)peers.entries[index].address[3],
+                    (unsigned int)peers.entries[index].port) < 0) {
+                root_peer_capabilities = 0;
+                stnc_network_disconnect(&connection);
+                return 1;
+            }
+            stnc_log_info(message);
+        }
+    } else {
+        stnc_log_info("Chain P2P root peer does not advertise peer discovery.");
+    }
+
+    stnc_network_disconnect(&connection);
 
     if (snprintf(message, sizeof(message),
             "Chain P2P root peer qualified: STNP v2 capabilities=%" PRIu32,
