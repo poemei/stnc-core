@@ -12,6 +12,7 @@
 #define STNC_INFO_REQUEST_ID UINT64_C(1)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
 #define STNC_RUNTIME_WAIT_MS 100u
+#define STNC_RECONNECT_INTERVAL_MS 5000u
 
 static stnc_core_state core_state = STNC_CORE_STATE_UNINITIALIZED;
 static stnc_network_connection chain_connection;
@@ -148,6 +149,34 @@ static int stnc_core_request_chain_info(int log_request)
     return 0;
 }
 
+static int stnc_core_connect_configured_peer(int log_qualification)
+{
+    const stnc_config *config;
+
+    config = stnc_config_get();
+
+    if (config == NULL) {
+        stnc_log_error("STNC Core configuration is unavailable.");
+        return 1;
+    }
+
+    if (stnc_network_is_connected(&chain_connection)) {
+        stnc_network_disconnect(&chain_connection);
+    }
+
+    if (stnc_network_connect(&chain_connection, config->peer, config->port) != 0) {
+        return 1;
+    }
+
+    if (stnc_core_request_chain_info(log_qualification) != 0) {
+        stnc_core_clear_chain_state();
+        stnc_network_disconnect(&chain_connection);
+        return 1;
+    }
+
+    return 0;
+}
+
 static int stnc_core_refresh_chain_state(void)
 {
     uint64_t previous_height;
@@ -159,7 +188,12 @@ static int stnc_core_refresh_chain_state(void)
 
     if (stnc_core_request_chain_info(0) != 0) {
         stnc_core_clear_chain_state();
-        stnc_log_error("Chain state refresh failed.");
+
+        if (stnc_network_is_connected(&chain_connection)) {
+            stnc_network_disconnect(&chain_connection);
+        }
+
+        stnc_log_error("Chain connection lost.");
         return 1;
     }
 
@@ -243,8 +277,8 @@ int stnc_core_init(void)
     stnc_log_info(message);
     stnc_log_info("Connecting to configured Chain peer.");
 
-    if (stnc_network_connect(&chain_connection, config->peer, config->port) != 0) {
-        stnc_log_error("Chain connection failed.");
+    if (stnc_core_connect_configured_peer(1) != 0) {
+        stnc_log_error("Configured peer failed STNC v2 qualification.");
         stnc_network_shutdown();
         stnc_config_shutdown();
         stnc_log_shutdown();
@@ -254,19 +288,6 @@ int stnc_core_init(void)
     }
 
     stnc_log_info("Chain connection established.");
-
-    if (stnc_core_request_chain_info(1) != 0) {
-        stnc_log_error("Configured peer failed STNC v2 qualification.");
-        stnc_core_clear_chain_state();
-        stnc_network_disconnect(&chain_connection);
-        stnc_network_shutdown();
-        stnc_config_shutdown();
-        stnc_log_shutdown();
-        stnc_platform_shutdown();
-        core_state = STNC_CORE_STATE_UNINITIALIZED;
-        return 1;
-    }
-
     stnc_log_info("Configured Chain peer qualified.");
 
     return 0;
@@ -274,24 +295,45 @@ int stnc_core_init(void)
 
 int stnc_core_run(void)
 {
-    unsigned int elapsed;
+    unsigned int refresh_elapsed;
+    unsigned int reconnect_elapsed;
 
     if (core_state != STNC_CORE_STATE_INITIALIZED) {
         return 1;
     }
 
     core_state = STNC_CORE_STATE_RUNNING;
-    elapsed = 0;
+    refresh_elapsed = 0;
+    reconnect_elapsed = 0;
     stnc_log_info("STNC Core running.");
 
     while (core_state == STNC_CORE_STATE_RUNNING) {
         stnc_platform_wait(STNC_RUNTIME_WAIT_MS);
-        elapsed += STNC_RUNTIME_WAIT_MS;
 
-        if (elapsed >= STNC_CHAIN_REFRESH_INTERVAL_MS) {
-            elapsed = 0;
-            if (stnc_core_refresh_chain_state() != 0) {
-                stnc_log_error("Chain state is unavailable.");
+        if (stnc_network_is_connected(&chain_connection)) {
+            refresh_elapsed += STNC_RUNTIME_WAIT_MS;
+            reconnect_elapsed = 0;
+
+            if (refresh_elapsed >= STNC_CHAIN_REFRESH_INTERVAL_MS) {
+                refresh_elapsed = 0;
+                if (stnc_core_refresh_chain_state() != 0) {
+                    reconnect_elapsed = 0;
+                    stnc_log_info("Reconnect scheduled.");
+                }
+            }
+        } else {
+            refresh_elapsed = 0;
+            reconnect_elapsed += STNC_RUNTIME_WAIT_MS;
+
+            if (reconnect_elapsed >= STNC_RECONNECT_INTERVAL_MS) {
+                reconnect_elapsed = 0;
+                stnc_log_info("Reconnecting to configured Chain peer.");
+
+                if (stnc_core_connect_configured_peer(0) == 0) {
+                    stnc_log_info("Chain connection restored.");
+                } else {
+                    stnc_log_error("Chain reconnect failed.");
+                }
             }
         }
     }
