@@ -46,8 +46,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo.
-echo BUILD SUCCESSFUL
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_stnp.c src\stnc_stnp.c /Fe:build\test-stnc-stnp.exe
 if errorlevel 1 (
     echo.
@@ -62,6 +60,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
+
+echo.
+echo BUILD SUCCESSFUL
 echo build\stnc-core.exe
 
 endlocal
