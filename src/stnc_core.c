@@ -8,6 +8,7 @@
 #include "stnc_network.h"
 #include "stnc_platform.h"
 #include "stnc_stnc.h"
+#include "stnc_stnp.h"
 
 #define STNC_INFO_REQUEST_ID UINT64_C(1)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
@@ -17,6 +18,7 @@
 static stnc_core_state core_state = STNC_CORE_STATE_UNINITIALIZED;
 static stnc_network_connection chain_connection;
 static stnc_core_chain_state chain_state;
+static uint32_t root_peer_capabilities;
 
 static void stnc_core_clear_chain_state(void)
 {
@@ -177,6 +179,89 @@ static int stnc_core_connect_configured_peer(int log_qualification)
     return 0;
 }
 
+
+static int stnc_core_qualify_root_peer(void)
+{
+    const stnc_config *config;
+    stnc_network_connection connection;
+    stnc_stnp_hello hello;
+    uint8_t request[STNC_STNP_HEADER_SIZE + STNC_STNP_HELLO_SIZE];
+    uint8_t response[STNC_STNP_HEADER_SIZE + STNC_STNP_HELLO_SIZE];
+    size_t written;
+    char message[512];
+
+    config = stnc_config_get();
+
+    if (config == NULL || !chain_state.available) {
+        return 1;
+    }
+
+    memset(&connection, 0, sizeof(connection));
+    memset(&hello, 0, sizeof(hello));
+
+    if (snprintf(message, sizeof(message),
+            "Qualifying Chain P2P root peer: %s:%u",
+            config->root_peer,
+            (unsigned int)config->root_peer_port) < 0) {
+        return 1;
+    }
+    stnc_log_info(message);
+
+    if (stnc_network_connect(
+            &connection,
+            config->root_peer,
+            config->root_peer_port
+        ) != 0) {
+        stnc_log_error("Chain P2P root peer connection failed.");
+        return 1;
+    }
+
+    if (stnc_stnp_encode_hello(
+            chain_state.network_id,
+            chain_state.genesis_id,
+            1u,
+            request,
+            sizeof(request),
+            &written
+        ) != 0 ||
+        stnc_network_send(&connection, request, written) != 0 ||
+        stnc_network_receive(&connection, response, sizeof(response)) != 0) {
+        stnc_log_error("Chain P2P root peer HELLO exchange failed.");
+        stnc_network_disconnect(&connection);
+        return 1;
+    }
+
+    stnc_network_disconnect(&connection);
+
+    if (stnc_stnp_decode_hello(response, sizeof(response), &hello) != 0) {
+        stnc_log_error("Chain P2P root peer returned an invalid STNP HELLO.");
+        return 1;
+    }
+
+    if (memcmp(hello.network_id, chain_state.network_id, 32) != 0 ||
+        memcmp(hello.genesis_id, chain_state.genesis_id, 32) != 0) {
+        stnc_log_error("Chain P2P root peer belongs to a different network or genesis.");
+        return 1;
+    }
+
+    if (hello.capabilities != 1u && hello.capabilities != 3u) {
+        stnc_log_error("Chain P2P root peer capabilities are incompatible.");
+        return 1;
+    }
+
+    root_peer_capabilities = hello.capabilities;
+
+    if (snprintf(message, sizeof(message),
+            "Chain P2P root peer qualified: STNP v2 capabilities=%" PRIu32,
+            root_peer_capabilities) < 0) {
+        root_peer_capabilities = 0;
+        return 1;
+    }
+
+    stnc_log_info(message);
+    return 0;
+}
+
 static int stnc_core_refresh_chain_state(void)
 {
     uint64_t previous_height;
@@ -290,6 +375,17 @@ int stnc_core_init(void)
     stnc_log_info("Chain connection established.");
     stnc_log_info("Configured Chain peer qualified.");
 
+    if (stnc_core_qualify_root_peer() != 0) {
+        stnc_log_error("Configured Chain P2P root peer failed STNP v2 qualification.");
+        stnc_network_disconnect(&chain_connection);
+        stnc_network_shutdown();
+        stnc_config_shutdown();
+        stnc_log_shutdown();
+        stnc_platform_shutdown();
+        core_state = STNC_CORE_STATE_UNINITIALIZED;
+        return 1;
+    }
+
     return 0;
 }
 
@@ -365,6 +461,7 @@ void stnc_core_shutdown(void)
         stnc_log_info("Chain connection closed.");
     }
 
+    root_peer_capabilities = 0;
     stnc_core_clear_chain_state();
     stnc_network_shutdown();
     stnc_config_shutdown();
