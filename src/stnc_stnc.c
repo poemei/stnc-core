@@ -4,13 +4,13 @@
 
 #include "stnc_stnc.h"
 
-static void stnc_write_u16(uint8_t *buffer, uint16_t value)
+void stnc_stnc_stnc_write_u16(uint8_t *buffer, uint16_t value)
 {
     buffer[0] = (uint8_t)((value >> 8) & 0xffu);
     buffer[1] = (uint8_t)(value & 0xffu);
 }
 
-static void stnc_write_u32(uint8_t *buffer, uint32_t value)
+void stnc_stnc_stnc_write_u32(uint8_t *buffer, uint32_t value)
 {
     buffer[0] = (uint8_t)((value >> 24) & 0xffu);
     buffer[1] = (uint8_t)((value >> 16) & 0xffu);
@@ -80,12 +80,12 @@ int stnc_stnc_encode(
     }
 
     memcpy(buffer, "STNC", 4);
-    stnc_write_u16(buffer + 4, STNC_STNC_VERSION);
-    stnc_write_u16(buffer + 6, message->kind);
-    stnc_write_u16(buffer + 8, message->method);
-    stnc_write_u16(buffer + 10, message->code);
+    stnc_stnc_write_u16(buffer + 4, STNC_STNC_VERSION);
+    stnc_stnc_write_u16(buffer + 6, message->kind);
+    stnc_stnc_write_u16(buffer + 8, message->method);
+    stnc_stnc_write_u16(buffer + 10, message->code);
     stnc_write_u64(buffer + 12, message->request_id);
-    stnc_write_u32(buffer + 20, 0);
+    stnc_stnc_write_u32(buffer + 20, 0);
 
     *written = STNC_STNC_HEADER_SIZE;
 
