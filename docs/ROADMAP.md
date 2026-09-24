@@ -743,7 +743,7 @@ Target:
 - Core runtime;
 - configuration;
 - STNC RPC v2 connectivity;
-- built-in `chain01.stn-chain.org:18473` seed;
+- built-in STNP root peer `chain01.stn-chain.org:18474`;\n- Chain RPC/STNC service on `chain01.stn-chain.org:18473`;
 - stn-chain.org peer-directory integration;
 - automatic peer selection;
 - synchronization;
@@ -901,7 +901,8 @@ STNC Core must preserve the following relationship:
 ```text
                        STN CHAIN
                  Consensus Authority
-                       :18473
+                 RPC / STNC :18473
+                 P2P / STNP :18474
                           |
                          STNC
                           |
