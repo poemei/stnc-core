@@ -1,6 +1,30 @@
 @echo off
 setlocal
 
+if /I "%~1"=="clean" (
+    if exist build (
+        echo Removing build directory...
+        rmdir /S /Q build
+
+        if exist build (
+            echo.
+            echo CLEAN FAILED
+            exit /b 1
+        )
+    )
+
+    echo.
+    echo CLEAN SUCCESSFUL
+    exit /b 0
+)
+
+if not "%~1"=="" (
+    echo Usage:
+    echo   build
+    echo   build clean
+    exit /b 1
+)
+
 if not exist build mkdir build
 
 cl /nologo /W4 /TC /Iincludes ^
