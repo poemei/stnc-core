@@ -376,14 +376,9 @@ int stnc_core_init(void)
     stnc_log_info("Configured Chain peer qualified.");
 
     if (stnc_core_qualify_root_peer() != 0) {
-        stnc_log_error("Configured Chain P2P root peer failed STNP v2 qualification.");
-        stnc_network_disconnect(&chain_connection);
-        stnc_network_shutdown();
-        stnc_config_shutdown();
-        stnc_log_shutdown();
-        stnc_platform_shutdown();
-        core_state = STNC_CORE_STATE_UNINITIALIZED;
-        return 1;
+        root_peer_capabilities = 0;
+        stnc_log_error("Configured Chain P2P root peer is currently unavailable.");
+        stnc_log_info("STNC Core will continue using the qualified Chain RPC connection.");
     }
 
     return 0;
