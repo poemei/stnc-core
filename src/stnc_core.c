@@ -14,6 +14,7 @@
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
+#define STNC_ROOT_PEER_RETRY_INTERVAL_MS 30000u
 
 static stnc_core_state core_state = STNC_CORE_STATE_UNINITIALIZED;
 static stnc_network_connection chain_connection;
@@ -388,6 +389,7 @@ int stnc_core_run(void)
 {
     unsigned int refresh_elapsed;
     unsigned int reconnect_elapsed;
+    unsigned int root_peer_retry_elapsed;
 
     if (core_state != STNC_CORE_STATE_INITIALIZED) {
         return 1;
@@ -396,6 +398,7 @@ int stnc_core_run(void)
     core_state = STNC_CORE_STATE_RUNNING;
     refresh_elapsed = 0;
     reconnect_elapsed = 0;
+    root_peer_retry_elapsed = 0;
     stnc_log_info("STNC Core running.");
 
     while (core_state == STNC_CORE_STATE_RUNNING) {
@@ -404,6 +407,21 @@ int stnc_core_run(void)
         if (stnc_network_is_connected(&chain_connection)) {
             refresh_elapsed += STNC_RUNTIME_WAIT_MS;
             reconnect_elapsed = 0;
+
+            if (root_peer_capabilities == 0) {
+                root_peer_retry_elapsed += STNC_RUNTIME_WAIT_MS;
+
+                if (root_peer_retry_elapsed >= STNC_ROOT_PEER_RETRY_INTERVAL_MS) {
+                    root_peer_retry_elapsed = 0;
+                    stnc_log_info("Retrying Chain P2P root peer qualification.");
+
+                    if (stnc_core_qualify_root_peer() != 0) {
+                        stnc_log_error("Chain P2P root peer remains unavailable.");
+                    }
+                }
+            } else {
+                root_peer_retry_elapsed = 0;
+            }
 
             if (refresh_elapsed >= STNC_CHAIN_REFRESH_INTERVAL_MS) {
                 refresh_elapsed = 0;
