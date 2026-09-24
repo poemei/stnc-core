@@ -11,20 +11,32 @@ int stnc_platform_get_app_directory(
     size_t buffer_size
 );
 
-/*
- * Install the platform-specific operator stop handler.
- *
- * The handler requests an orderly Core stop.
- *
- * Returns 0 on success.
- * Returns non-zero on failure.
- */
 int stnc_platform_install_stop_handler(void);
-
-/*
- * Suspend runtime execution for the requested number
- * of milliseconds.
- */
 void stnc_platform_wait(unsigned int milliseconds);
+
+int stnc_platform_network_init(void);
+void stnc_platform_network_shutdown(void);
+
+int stnc_platform_network_connect(
+    void **handle,
+    const char *peer,
+    unsigned short port
+);
+
+int stnc_platform_network_send(
+    void *handle,
+    const unsigned char *buffer,
+    size_t length
+);
+
+int stnc_platform_network_receive(
+    void *handle,
+    unsigned char *buffer,
+    size_t length
+);
+
+void stnc_platform_network_disconnect(
+    void *handle
+);
 
 #endif
