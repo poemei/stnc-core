@@ -5,6 +5,7 @@ if not exist build mkdir build
 
 cl /nologo /W4 /TC /Iincludes ^
     src\main.c ^
+    src\stnc_command.c ^
     src\stnc_core.c ^
     src\stnc_log.c ^
     src\stnc_config.c ^
