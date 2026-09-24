@@ -4,13 +4,13 @@
 
 #include "stnc_stnc.h"
 
-void stnc_stnc_stnc_write_u16(uint8_t *buffer, uint16_t value)
+void stnc_stnc_write_u16(uint8_t *buffer, uint16_t value)
 {
     buffer[0] = (uint8_t)((value >> 8) & 0xffu);
     buffer[1] = (uint8_t)(value & 0xffu);
 }
 
-void stnc_stnc_stnc_write_u32(uint8_t *buffer, uint32_t value)
+void stnc_stnc_write_u32(uint8_t *buffer, uint32_t value)
 {
     buffer[0] = (uint8_t)((value >> 24) & 0xffu);
     buffer[1] = (uint8_t)((value >> 16) & 0xffu);
