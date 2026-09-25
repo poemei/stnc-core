@@ -203,6 +203,25 @@ static int check_staged_suffix(void)
     return 0;
 }
 
+static int check_mining_context(void)
+{
+    uint8_t frame[STNC_STNC_HEADER_SIZE],payload[STNC_STNC_MINING_CONTEXT_SIZE]={0};
+    stnc_mining_context context;size_t written=0u,i;
+    if(stnc_stnc_encode_empty_request(STNC_STNC_METHOD_MINING_CONTEXT,UINT64_C(19),
+            frame,sizeof(frame),&written)!=0||written!=sizeof(frame)||
+       frame[8]!=0x20u||frame[9]!=0x00u)return 1;
+    if(stnc_stnc_encode_empty_request(STNC_STNC_METHOD_CHECK_WORK_BASE,UINT64_C(20),
+            frame,sizeof(frame),&written)==0||written!=0u)return 1;
+    for(i=0u;i<32u;i++){payload[i]=(uint8_t)i;payload[32u+i]=(uint8_t)(0xffu-i);}
+    payload[71]=42u;payload[75]=1u;
+    if(stnc_stnc_decode_mining_context(payload,sizeof(payload),&context)!=0||
+       context.height!=UINT64_C(42)||context.template_available!=1u||
+       memcmp(context.tip_id,payload,32u)!=0||memcmp(context.target,payload+32u,32u)!=0)return 1;
+    payload[75]=2u;
+    if(stnc_stnc_decode_mining_context(payload,sizeof(payload),&context)==0)return 1;
+    return 0;
+}
+
 int main(void)
 {
     uint8_t frame[STNC_STNC_DERIVE_FRAME_MAX];
@@ -227,7 +246,7 @@ int main(void)
         return 1;
     }
 
-    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0 || check_block_evidence() != 0 || check_history_evidence() != 0 || check_suffix_evidence() != 0 || check_staged_suffix() != 0) {
+    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0 || check_block_evidence() != 0 || check_history_evidence() != 0 || check_suffix_evidence() != 0 || check_staged_suffix() != 0 || check_mining_context() != 0) {
         return 1;
     }
 
