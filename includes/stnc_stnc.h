@@ -42,6 +42,7 @@
 #define STNC_STNC_METHOD_SUBMIT_WORK 0x2003u
 #define STNC_STNC_METHOD_SUBMIT_SHARE 0x2004u
 #define STNC_STNC_MINING_CONTEXT_SIZE 76u
+#define STNC_STNC_MINING_TEMPLATE_PREFIX_SIZE 68u
 #define STNC_STNC_BLOCK_HEADER_SIZE 168u
 #define STNC_STNC_BLOCK_MAX_SIZE 1070328u
 #define STNC_STNC_BLOCK_ACCEPTED_SIZE 80u
@@ -102,6 +103,13 @@ typedef struct stnc_submission_result {
     int has_transaction_id;
 } stnc_submission_result;
 
+typedef struct stnc_mining_template {
+    uint8_t parent_id[32];
+    uint8_t work_id[32];
+    const uint8_t *block;
+    size_t block_length;
+} stnc_mining_template;
+
 typedef struct stnc_mining_context {
     uint8_t tip_id[32];
     uint8_t target[32];
@@ -129,6 +137,10 @@ int stnc_stnc_encode(
 
 int stnc_stnc_encode_empty_request(
     uint16_t method,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written
+);
+
+int stnc_stnc_decode_mining_template(
+    const uint8_t *payload,size_t length,stnc_mining_template *work
 );
 
 int stnc_stnc_decode_mining_context(
