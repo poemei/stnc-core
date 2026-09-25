@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "stnc_peers.h"
@@ -9,12 +10,12 @@ static int stnc_peers_compare(
     const stnc_peer_candidate *right
 )
 {
-    int address_order;
+    int host_order;
 
-    address_order = memcmp(left->address, right->address, 4);
+    host_order = strcmp(left->host, right->host);
 
-    if (address_order != 0) {
-        return address_order;
+    if (host_order != 0) {
+        return host_order;
     }
 
     if (left->port < right->port) {
@@ -28,16 +29,41 @@ static int stnc_peers_compare(
     return 0;
 }
 
-static int stnc_peers_valid(const stnc_peer_candidate *candidate)
+static int stnc_peers_valid_host(const char *host)
 {
-    if (candidate == NULL ||
-        candidate->port == 0 ||
-        candidate->address[0] == 0 ||
-        candidate->address[0] >= 224u) {
+    size_t length;
+    size_t index;
+
+    if (host == NULL || host[0] == '\0') {
         return 0;
     }
 
+    length = strlen(host);
+
+    if (length > STNC_PEER_HOST_MAX) {
+        return 0;
+    }
+
+    for (index = 0; index < length; ++index) {
+        unsigned char value;
+
+        value = (unsigned char)host[index];
+
+        if (value <= 0x20u || value >= 0x7fu ||
+            value == '/' || value == '\\' ||
+            value == ':' || value == '[' || value == ']') {
+            return 0;
+        }
+    }
+
     return 1;
+}
+
+static int stnc_peers_valid(const stnc_peer_candidate *candidate)
+{
+    return candidate != NULL &&
+           candidate->port != 0 &&
+           stnc_peers_valid_host(candidate->host);
 }
 
 void stnc_peers_clear(stnc_peer_candidates *set)
@@ -117,12 +143,24 @@ int stnc_peers_add_stnp(
 
     for (index = 0; index < peers->count; ++index) {
         stnc_peer_candidate candidate;
+        int written;
 
-        memcpy(
-            candidate.address,
-            peers->entries[index].address,
-            sizeof(candidate.address)
+        memset(&candidate, 0, sizeof(candidate));
+
+        written = snprintf(
+            candidate.host,
+            sizeof(candidate.host),
+            "%u.%u.%u.%u",
+            (unsigned int)peers->entries[index].address[0],
+            (unsigned int)peers->entries[index].address[1],
+            (unsigned int)peers->entries[index].address[2],
+            (unsigned int)peers->entries[index].address[3]
         );
+
+        if (written < 1 || (size_t)written >= sizeof(candidate.host)) {
+            return 1;
+        }
+
         candidate.port = peers->entries[index].port;
 
         if (stnc_peers_add(&staged, &candidate) != 0) {
