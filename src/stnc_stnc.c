@@ -376,6 +376,58 @@ int stnc_stnc_encode_submit_suffix_evidence(
     rc=stnc_stnc_encode(&message,buffer,capacity,written);free(payload);return rc;
 }
 
+int stnc_stnc_encode_suffix_stage_begin(
+    uint32_t prefix_count,uint32_t suffix_count,uint64_t request_id,
+    uint8_t *buffer,size_t capacity,size_t *written)
+{
+    stnc_stnc_message message;uint8_t payload[8u];
+    if(written!=NULL)*written=0;
+    if(prefix_count==0u||suffix_count==0u)return 1;
+    stnc_stnc_write_u32(payload,prefix_count);stnc_stnc_write_u32(payload+4u,suffix_count);
+    memset(&message,0,sizeof(message));message.kind=STNC_STNC_REQUEST;
+    message.method=STNC_STNC_METHOD_SUFFIX_STAGE_BEGIN;message.request_id=request_id;
+    message.payload=payload;message.length=sizeof(payload);
+    return stnc_stnc_encode(&message,buffer,capacity,written);
+}
+
+int stnc_stnc_encode_suffix_stage_append(
+    uint32_t start,const uint8_t *const *blocks,const size_t *block_lengths,
+    size_t block_count,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written)
+{
+    stnc_stnc_message message;uint8_t *payload;size_t n=8u,at=8u,i;int rc;
+    if(written!=NULL)*written=0;
+    if(blocks==NULL||block_lengths==NULL||block_count==0u||block_count>UINT32_MAX)return 1;
+    for(i=0u;i<block_count;i++){
+        if(blocks[i]==NULL||block_lengths[i]<STNC_STNC_BLOCK_HEADER_SIZE||
+           block_lengths[i]>STNC_STNC_BLOCK_MAX_SIZE||n>UINT32_MAX-4u||
+           block_lengths[i]>UINT32_MAX-n-4u)return 1;
+        n+=4u+block_lengths[i];
+    }
+    if(capacity<STNC_STNC_HEADER_SIZE||n>capacity-STNC_STNC_HEADER_SIZE)return 1;
+    payload=(uint8_t *)malloc(n);if(payload==NULL)return 1;
+    stnc_stnc_write_u32(payload,start);stnc_stnc_write_u32(payload+4u,(uint32_t)block_count);
+    for(i=0u;i<block_count;i++){
+        stnc_stnc_write_u32(payload+at,(uint32_t)block_lengths[i]);at+=4u;
+        memcpy(payload+at,blocks[i],block_lengths[i]);at+=block_lengths[i];
+    }
+    memset(&message,0,sizeof(message));message.kind=STNC_STNC_REQUEST;
+    message.method=STNC_STNC_METHOD_SUFFIX_STAGE_APPEND;message.request_id=request_id;
+    message.payload=payload;message.length=n;
+    rc=stnc_stnc_encode(&message,buffer,capacity,written);free(payload);return rc;
+}
+
+int stnc_stnc_encode_suffix_stage_control(
+    uint16_t method,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written)
+{
+    stnc_stnc_message message;
+    if(written!=NULL)*written=0;
+    if(method!=STNC_STNC_METHOD_SUFFIX_STAGE_COMMIT&&
+       method!=STNC_STNC_METHOD_SUFFIX_STAGE_ABORT)return 1;
+    memset(&message,0,sizeof(message));message.kind=STNC_STNC_REQUEST;
+    message.method=method;message.request_id=request_id;
+    return stnc_stnc_encode(&message,buffer,capacity,written);
+}
+
 int stnc_stnc_decode_block_accepted(
     const uint8_t *payload,size_t length,uint8_t tip_id[32],
     uint64_t *height,uint8_t cumulative_work[40])
