@@ -167,7 +167,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-cl /nologo /W4 /TC /Iincludes tests\test_stnc_background_mining.c src\stnc_background_mining.c src\stnc_mining_service.c /Fe:build\test-stnc-background-mining.exe
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_background_mining.c src\stnc_background_mining.c src\stnc_mining_service.c src\stnc_log.c /Fe:build\test-stnc-background-mining.exe
 if errorlevel 1 (
     echo.
     echo BACKGROUND MINING TEST BUILD FAILED
