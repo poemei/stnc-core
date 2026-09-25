@@ -19,6 +19,7 @@
 #define STNC_DERIVE_ADDRESS_REQUEST_ID UINT64_C(2)
 #define STNC_BALANCE_REQUEST_ID UINT64_C(3)
 #define STNC_CONTRACT_STATE_REQUEST_ID UINT64_C(4)
+#define STNC_SUBMIT_TRANSACTION_REQUEST_ID UINT64_C(5)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
@@ -1329,6 +1330,29 @@ int stnc_core_contract_state(const char *contract, stnc_contract_state *state)
     if (state == NULL || stnc_core_address_query(STNC_STNC_METHOD_CONTRACT_STATE,contract,STNC_CONTRACT_STATE_REQUEST_ID,
         payload,sizeof(payload),sizeof(payload)) != 0) return 1;
     return stnc_stnc_decode_contract_state(payload,sizeof(payload),state);
+}
+
+int stnc_core_submit_transaction(const uint8_t *transaction,size_t transaction_length,stnc_submission_result *result)
+{
+    uint8_t *request;uint8_t response_header[STNC_STNC_HEADER_SIZE];uint8_t payload[STNC_STNC_SUBMISSION_RESPONSE_SIZE];
+    stnc_stnc_message response;size_t capacity,written;int rc=1;
+    if(core_state==STNC_CORE_STATE_UNINITIALIZED||core_state==STNC_CORE_STATE_STOPPED||
+       !stnc_network_is_connected(&chain_connection)||transaction==NULL||result==NULL||
+       transaction_length<12u||transaction_length>STNC_STNC_TRANSACTION_MAX)return 1;
+    capacity=STNC_STNC_HEADER_SIZE+transaction_length;
+    request=(uint8_t *)malloc(capacity);if(request==NULL)return 1;
+    if(stnc_stnc_encode_submit_transaction(transaction,transaction_length,STNC_SUBMIT_TRANSACTION_REQUEST_ID,
+            request,capacity,&written)==0 &&
+       stnc_network_send(&chain_connection,request,written)==0 &&
+       stnc_network_receive(&chain_connection,response_header,sizeof(response_header))==0 &&
+       stnc_stnc_decode_header(response_header,sizeof(response_header),&response)==0 &&
+       response.method==STNC_STNC_METHOD_SUBMIT_TRANSACTION &&
+       response.request_id==STNC_SUBMIT_TRANSACTION_REQUEST_ID &&
+       response.code==STNC_STNC_OK &&
+       response.length==sizeof(payload) &&
+       stnc_network_receive(&chain_connection,payload,sizeof(payload))==0 &&
+       stnc_stnc_decode_submission(payload,sizeof(payload),result)==0)rc=0;
+    free(request);return rc;
 }
 
 int stnc_core_run(void)
