@@ -166,6 +166,43 @@ static int check_suffix_evidence(void)
     return 0;
 }
 
+
+static int check_staged_suffix(void)
+{
+    uint8_t a[STNC_STNC_BLOCK_HEADER_SIZE]={0},b[STNC_STNC_BLOCK_HEADER_SIZE]={0};
+    const uint8_t *blocks[2]={a,b};
+    size_t lengths[2]={sizeof(a),sizeof(b)};
+    uint8_t frame[STNC_STNC_HEADER_SIZE+8u+2u*(4u+STNC_STNC_BLOCK_HEADER_SIZE)];
+    size_t written=0u;
+
+    if(stnc_stnc_encode_suffix_stage_begin(7u,2u,UINT64_C(14),
+            frame,sizeof(frame),&written)!=0||
+       written!=STNC_STNC_HEADER_SIZE+8u||frame[8]!=0x10u||frame[9]!=0x09u||
+       frame[24]!=0u||frame[25]!=0u||frame[26]!=0u||frame[27]!=7u||
+       frame[28]!=0u||frame[29]!=0u||frame[30]!=0u||frame[31]!=2u)return 1;
+    if(stnc_stnc_encode_suffix_stage_begin(0u,2u,UINT64_C(14),
+            frame,sizeof(frame),&written)==0||written!=0u)return 1;
+
+    if(stnc_stnc_encode_suffix_stage_append(0u,blocks,lengths,2u,UINT64_C(15),
+            frame,sizeof(frame),&written)!=0||
+       written!=sizeof(frame)||frame[8]!=0x10u||frame[9]!=0x0au||
+       frame[24]!=0u||frame[25]!=0u||frame[26]!=0u||frame[27]!=0u||
+       frame[28]!=0u||frame[29]!=0u||frame[30]!=0u||frame[31]!=2u)return 1;
+    lengths[1]=STNC_STNC_BLOCK_HEADER_SIZE-1u;
+    if(stnc_stnc_encode_suffix_stage_append(0u,blocks,lengths,2u,UINT64_C(15),
+            frame,sizeof(frame),&written)==0||written!=0u)return 1;
+
+    if(stnc_stnc_encode_suffix_stage_control(STNC_STNC_METHOD_SUFFIX_STAGE_COMMIT,
+            UINT64_C(16),frame,sizeof(frame),&written)!=0||
+       written!=STNC_STNC_HEADER_SIZE||frame[8]!=0x10u||frame[9]!=0x0bu)return 1;
+    if(stnc_stnc_encode_suffix_stage_control(STNC_STNC_METHOD_SUFFIX_STAGE_ABORT,
+            UINT64_C(17),frame,sizeof(frame),&written)!=0||
+       written!=STNC_STNC_HEADER_SIZE||frame[8]!=0x10u||frame[9]!=0x0cu)return 1;
+    if(stnc_stnc_encode_suffix_stage_control(STNC_STNC_METHOD_SUFFIX_STAGE_BEGIN,
+            UINT64_C(18),frame,sizeof(frame),&written)==0||written!=0u)return 1;
+    return 0;
+}
+
 int main(void)
 {
     uint8_t frame[STNC_STNC_DERIVE_FRAME_MAX];
@@ -190,7 +227,7 @@ int main(void)
         return 1;
     }
 
-    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0 || check_block_evidence() != 0 || check_history_evidence() != 0 || check_suffix_evidence() != 0) {
+    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0 || check_block_evidence() != 0 || check_history_evidence() != 0 || check_suffix_evidence() != 0 || check_staged_suffix() != 0) {
         return 1;
     }
 
