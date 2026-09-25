@@ -77,6 +77,11 @@ int stnc_core_mining_context(stnc_mining_context *context);
 int stnc_core_check_work_base(const uint8_t tip_id[32],stnc_mining_context *context);
 int stnc_core_mining_template(uint8_t **payload,size_t *payload_length,stnc_mining_template *work);
 void stnc_core_mining_template_release(uint8_t *payload);
+int stnc_core_submit_work(
+    const uint8_t parent_id[32],const uint8_t work_id[32],const char *miner_identity,
+    const uint8_t *block,size_t block_length,uint8_t block_id[32],uint64_t *height,
+    uint8_t cumulative_work[40]
+);
 int stnc_core_submit_block_evidence(const uint8_t *block,size_t block_length);
 int stnc_core_submit_history_evidence(
     const uint8_t *const *blocks,const size_t *block_lengths,size_t block_count);
