@@ -516,6 +516,8 @@ int stnc_platform_sha256(const unsigned char *buffer,size_t length,unsigned char
 
 void stnc_platform_secure_clear(void *buffer,size_t length){if(buffer!=NULL&&length!=0)SecureZeroMemory(buffer,length);}
 
+char stnc_platform_path_separator(void){return '\\';}
+
 int stnc_platform_protect_private_file(const char *path)
 {
     HANDLE token=NULL;DWORD size=0;TOKEN_USER *user=NULL;EXPLICIT_ACCESSA access;PACL acl=NULL;DWORD result=ERROR_SUCCESS;
