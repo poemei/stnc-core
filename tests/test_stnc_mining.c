@@ -46,6 +46,9 @@ int main(void)
     uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE]={0},original[STNC_STNC_BLOCK_HEADER_SIZE];
     uint8_t digest[32]={0},target[32]={0};uint64_t nonce=99u,attempts=0u;size_t i;
 
+    if(sizeof(domain)!=STNC_MINING_HASH_DOMAIN_SIZE||
+       STNC_MINING_HASH_INPUT_SIZE!=sizeof(domain)+STNC_STNC_BLOCK_HEADER_SIZE)return 1;
+
     target[31]=1u;
     if(!stnc_mining_hash_meets_target(digest,target))return 1;
     memcpy(digest,target,sizeof(digest));
