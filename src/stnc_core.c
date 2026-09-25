@@ -23,6 +23,8 @@
 #define STNC_PENDING_REQUEST_ID UINT64_C(6)
 #define STNC_BLOCK_EVIDENCE_REQUEST_ID UINT64_C(7)
 #define STNC_HISTORY_EVIDENCE_REQUEST_ID UINT64_C(8)
+#define STNC_SUFFIX_EVIDENCE_REQUEST_ID UINT64_C(9)
+#define STNC_BLOCK_HEIGHT_REQUEST_ID UINT64_C(10)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
@@ -69,44 +71,65 @@ static int stnc_core_fetch_peer_block(
     *owned=frame;return 0;
 }
 
+static int stnc_core_chain_block(uint32_t index,uint8_t **owned,const uint8_t **block,size_t *length)
+{
+    uint8_t request[STNC_STNC_HEADER_SIZE+8u],header[STNC_STNC_HEADER_SIZE];
+    stnc_stnc_message response;size_t written;uint8_t *payload;
+    if(owned==NULL||block==NULL||length==NULL)return 1;
+    *owned=NULL;*block=NULL;*length=0u;
+    if(stnc_stnc_encode_block_height((uint64_t)index,STNC_BLOCK_HEIGHT_REQUEST_ID,
+            request,sizeof(request),&written)!=0||
+       stnc_network_send(&chain_connection,request,written)!=0||
+       stnc_network_receive(&chain_connection,header,sizeof(header))!=0||
+       stnc_stnc_decode_header(header,sizeof(header),&response)!=0||
+       response.method!=STNC_STNC_METHOD_BLOCK_HEIGHT||
+       response.request_id!=STNC_BLOCK_HEIGHT_REQUEST_ID||response.code!=STNC_STNC_OK||
+       response.length<STNC_STNC_BLOCK_HEADER_SIZE||response.length>STNC_STNC_BLOCK_MAX_SIZE)return 1;
+    payload=(uint8_t *)malloc(response.length);if(payload==NULL)return 1;
+    if(stnc_network_receive(&chain_connection,payload,response.length)!=0){free(payload);return 1;}
+    *owned=payload;*block=payload;*length=response.length;return 0;
+}
+
+static int stnc_core_common_prefix(uint32_t peer_count,uint32_t *prefix)
+{
+    uint32_t low=0u,high=peer_count<chain_state.block_count?peer_count:chain_state.block_count;
+    if(prefix==NULL)return 1;
+    while(low<high){
+        uint32_t mid=low+(high-low+1u)/2u,index=mid-1u;
+        uint8_t *po=NULL,*co=NULL;const uint8_t *pb=NULL,*cb=NULL;size_t pn=0u,cn=0u;int same;
+        if(stnc_core_fetch_peer_block(index,NULL,&po,&pb,&pn)!=0||
+           stnc_core_chain_block(index,&co,&cb,&cn)!=0){free(po);free(co);return 1;}
+        same=pn==cn&&memcmp(pb,cb,pn)==0;free(po);free(co);
+        if(same)low=mid;else high=mid-1u;
+    }
+    *prefix=low;return 0;
+}
+
 static int stnc_core_submit_peer_history(uint32_t peer_block_count)
 {
-    uint8_t **owned=NULL;
-    const uint8_t **blocks=NULL;
-    size_t *lengths=NULL;
-    size_t i;
-    int rc=1;
-
-    if(peer_block_count==0u||peer_block_count>STNC_HISTORY_EVIDENCE_MAX_BLOCKS){
-        stnc_log_error("Selected Chain P2P competing history exceeds the bounded recovery block limit.");
-        return 1;
+    uint8_t **owned=NULL;const uint8_t **blocks=NULL;size_t *lengths=NULL;
+    size_t i,total=8u;uint32_t prefix=0u,suffix_count;int rc=1;
+    if(peer_block_count==0u||stnc_core_common_prefix(peer_block_count,&prefix)!=0)return 1;
+    if(prefix==0u||prefix>=peer_block_count){stnc_log_error("Selected Chain P2P history has no actionable divergent suffix.");return 1;}
+    suffix_count=peer_block_count-prefix;
+    if(suffix_count>STNC_HISTORY_EVIDENCE_MAX_BLOCKS){
+        stnc_log_error("Selected Chain P2P divergent suffix exceeds the bounded recovery block limit.");return 1;
     }
-    owned=(uint8_t **)calloc(peer_block_count,sizeof(*owned));
-    blocks=(const uint8_t **)calloc(peer_block_count,sizeof(*blocks));
-    lengths=(size_t *)calloc(peer_block_count,sizeof(*lengths));
+    owned=(uint8_t **)calloc(suffix_count,sizeof(*owned));
+    blocks=(const uint8_t **)calloc(suffix_count,sizeof(*blocks));
+    lengths=(size_t *)calloc(suffix_count,sizeof(*lengths));
     if(owned==NULL||blocks==NULL||lengths==NULL)goto done;
-
-    {
-        size_t total=4u;
-        for(i=0u;i<(size_t)peer_block_count;i++){
-            if(stnc_core_fetch_peer_block((uint32_t)i,NULL,&owned[i],&blocks[i],&lengths[i])!=0){
-                stnc_log_error("Selected Chain P2P competing history retrieval failed.");goto done;
-            }
-            if(total>STNC_HISTORY_EVIDENCE_MAX_BYTES-4u||
-               lengths[i]>STNC_HISTORY_EVIDENCE_MAX_BYTES-total-4u){
-                stnc_log_error("Selected Chain P2P competing history exceeds the bounded recovery byte limit.");
-                goto done;
-            }
-            total+=4u+lengths[i];
-        }
+    for(i=0u;i<(size_t)suffix_count;i++){
+        uint32_t index=prefix+(uint32_t)i;
+        if(stnc_core_fetch_peer_block(index,NULL,&owned[i],&blocks[i],&lengths[i])!=0)goto done;
+        if(total>STNC_HISTORY_EVIDENCE_MAX_BYTES-4u||
+           lengths[i]>STNC_HISTORY_EVIDENCE_MAX_BYTES-total-4u)goto done;
+        total+=4u+lengths[i];
     }
-    if(stnc_core_submit_history_evidence(blocks,lengths,peer_block_count)!=0){
-        stnc_log_error("Selected Chain P2P competing history was not adopted by Chain.");goto done;
-    }
-    stnc_log_info("Chain accepted a preferred competing history from peer evidence.");
-    rc=0;
+    if(stnc_core_submit_suffix_evidence(prefix,blocks,lengths,suffix_count)!=0)goto done;
+    stnc_log_info("Chain accepted a preferred bounded peer suffix.");rc=0;
 done:
-    if(owned!=NULL)for(i=0u;i<(size_t)peer_block_count;i++)free(owned[i]);
+    if(owned!=NULL)for(i=0u;i<(size_t)suffix_count;i++)free(owned[i]);
     free(lengths);free(blocks);free(owned);return rc;
 }
 
@@ -1381,6 +1404,32 @@ int stnc_core_submit_history_evidence(
     memcpy(chain_state.cumulative_work,work,sizeof(work));
     chain_state.block_count=height<UINT32_MAX?(uint32_t)(height+1u):UINT32_MAX;
     chain_state.available=1;rc=0;
+done:
+    free(payload);free(request);return rc;
+}
+
+int stnc_core_submit_suffix_evidence(
+    uint32_t prefix_count,const uint8_t *const *blocks,const size_t *block_lengths,size_t block_count)
+{
+    uint8_t *request,*payload=NULL,header[STNC_STNC_HEADER_SIZE],tip[32],work[40];
+    stnc_stnc_message response;uint64_t height;size_t capacity=STNC_STNC_HEADER_SIZE+8u,written,i;int rc=1;
+    if(prefix_count==0u||blocks==NULL||block_lengths==NULL||block_count==0u)return 1;
+    for(i=0u;i<block_count;i++){if(blocks[i]==NULL||capacity>SIZE_MAX-4u||
+        block_lengths[i]>SIZE_MAX-capacity-4u)return 1;capacity+=4u+block_lengths[i];}
+    request=(uint8_t *)malloc(capacity);if(request==NULL)return 1;
+    if(stnc_stnc_encode_submit_suffix_evidence(prefix_count,blocks,block_lengths,block_count,
+            STNC_SUFFIX_EVIDENCE_REQUEST_ID,request,capacity,&written)!=0)goto done;
+    if(stnc_network_send(&chain_connection,request,written)!=0||
+       stnc_network_receive(&chain_connection,header,sizeof(header))!=0||
+       stnc_stnc_decode_header(header,sizeof(header),&response)!=0||
+       response.method!=STNC_STNC_METHOD_SUBMIT_SUFFIX_EVIDENCE||
+       response.request_id!=STNC_SUFFIX_EVIDENCE_REQUEST_ID||response.code!=STNC_STNC_OK||
+       response.length!=STNC_STNC_BLOCK_ACCEPTED_SIZE)goto done;
+    payload=(uint8_t *)malloc(response.length);if(payload==NULL)goto done;
+    if(stnc_network_receive(&chain_connection,payload,response.length)!=0||
+       stnc_stnc_decode_block_accepted(payload,response.length,tip,&height,work)!=0)goto done;
+    memcpy(chain_state.tip_id,tip,32u);chain_state.height=height;memcpy(chain_state.cumulative_work,work,40u);
+    chain_state.block_count=height<UINT32_MAX?(uint32_t)(height+1u):UINT32_MAX;chain_state.available=1;rc=0;
 done:
     free(payload);free(request);return rc;
 }
