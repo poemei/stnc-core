@@ -460,7 +460,7 @@ int stnc_platform_https_get(
                 remaining = capacity - used - 1u;
 
                 if (remaining > (size_t)MAXDWORD) {
-                    remaining = (size_t)DWORD_MAX;
+                    remaining = (size_t)MAXDWORD;
                 }
 
                 received = 0;
