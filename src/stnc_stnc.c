@@ -106,6 +106,19 @@ int stnc_stnc_encode_empty_request(
     return stnc_stnc_encode(&message,buffer,capacity,written);
 }
 
+int stnc_stnc_decode_mining_template(
+    const uint8_t *payload,size_t length,stnc_mining_template *work)
+{
+    stnc_mining_template decoded;uint32_t block_length;
+    if(payload==NULL||work==NULL||length<STNC_STNC_MINING_TEMPLATE_PREFIX_SIZE)return 1;
+    block_length=stnc_read_u32(payload+64u);
+    if(block_length<STNC_STNC_BLOCK_HEADER_SIZE||block_length>STNC_STNC_BLOCK_MAX_SIZE||
+       (size_t)block_length!=length-STNC_STNC_MINING_TEMPLATE_PREFIX_SIZE)return 1;
+    memset(&decoded,0,sizeof(decoded));memcpy(decoded.parent_id,payload,32u);
+    memcpy(decoded.work_id,payload+32u,32u);decoded.block=payload+STNC_STNC_MINING_TEMPLATE_PREFIX_SIZE;
+    decoded.block_length=(size_t)block_length;*work=decoded;return 0;
+}
+
 int stnc_stnc_decode_mining_context(
     const uint8_t *payload,size_t length,stnc_mining_context *context)
 {
