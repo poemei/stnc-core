@@ -33,6 +33,7 @@ cl /nologo /W4 /TC /Iincludes ^
     src\stnc_contract_status.c ^
     src\stnc_core.c ^
     src\stnc_log.c ^
+    src\stnc_mining.c ^
     src\stnc_config.c ^
     src\stnc_directory.c ^
     src\stnc_http.c ^
@@ -135,6 +136,19 @@ build\test-stnc-stnc.exe
 if errorlevel 1 (
     echo.
     echo STNC CODEC TEST FAILED
+    exit /b 1
+)
+
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_mining.c src\stnc_mining.c /Fe:build\test-stnc-mining.exe
+if errorlevel 1 (
+    echo.
+    echo MINING TEST BUILD FAILED
+    exit /b 1
+)
+build\test-stnc-mining.exe
+if errorlevel 1 (
+    echo.
+    echo MINING TEST FAILED
     exit /b 1
 )
 
