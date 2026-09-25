@@ -8,6 +8,9 @@ typedef struct stnc_config {
     unsigned short port;
     char root_peer[STNC_CONFIG_PEER_MAX];
     unsigned short root_peer_port;
+    int mining_enabled;
+    char mining_backend[16];
+    unsigned int mining_cpu_limit_percent;
 } stnc_config;
 
 /*
