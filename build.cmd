@@ -33,13 +33,15 @@ cl /nologo /W4 /TC /Iincludes ^
     src\stnc_core.c ^
     src\stnc_log.c ^
     src\stnc_config.c ^
+    src\stnc_directory.c ^
+    src\stnc_http.c ^
     src\stnc_network.c ^
     src\stnc_peers.c ^
     src\stnc_stnc.c ^
     src\stnc_stnp.c ^
     platforms\windows\platform_windows.c ^
     /Fe:build\stnc-core.exe ^
-    /link ws2_32.lib
+    /link ws2_32.lib winhttp.lib
 
 if errorlevel 1 (
     echo.
@@ -72,6 +74,34 @@ build\test-stnc-peers.exe
 if errorlevel 1 (
     echo.
     echo PEER TEST FAILED
+    exit /b 1
+)
+
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_directory.c src\stnc_directory.c src\stnc_peers.c /Fe:build\test-stnc-directory.exe
+if errorlevel 1 (
+    echo.
+    echo DIRECTORY TEST BUILD FAILED
+    exit /b 1
+)
+
+build\test-stnc-directory.exe
+if errorlevel 1 (
+    echo.
+    echo DIRECTORY TEST FAILED
+    exit /b 1
+)
+
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_http.c src\stnc_http.c /Fe:build\test-stnc-http.exe
+if errorlevel 1 (
+    echo.
+    echo HTTP TEST BUILD FAILED
+    exit /b 1
+)
+
+build\test-stnc-http.exe
+if errorlevel 1 (
+    echo.
+    echo HTTP TEST FAILED
     exit /b 1
 )
 
