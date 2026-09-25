@@ -115,6 +115,60 @@ int stnc_stnp_decode_hello(
     return 0;
 }
 
+int stnc_stnp_encode_state(
+    uint8_t *buffer,
+    size_t capacity,
+    size_t *written
+)
+{
+    return stnc_stnp_encode_empty(
+        STNC_STNP_STATE,
+        buffer,
+        capacity,
+        written
+    );
+}
+
+int stnc_stnp_decode_state(
+    const uint8_t *buffer,
+    size_t length,
+    stnc_stnp_state *state
+)
+{
+    stnc_stnp_state value;
+
+    if (buffer == NULL ||
+        state == NULL ||
+        length != STNC_STNP_HEADER_SIZE + STNC_STNP_STATE_SIZE ||
+        memcmp(buffer, "STNP", 4) != 0 ||
+        stnc_stnp_read_u16(buffer + 4) != STNC_STNP_VERSION ||
+        stnc_stnp_read_u16(buffer + 6) != STNC_STNP_STATE ||
+        stnc_stnp_read_u32(buffer + 8) != STNC_STNP_STATE_SIZE) {
+        return 1;
+    }
+
+    value.height =
+        ((uint64_t)buffer[12] << 56) |
+        ((uint64_t)buffer[13] << 48) |
+        ((uint64_t)buffer[14] << 40) |
+        ((uint64_t)buffer[15] << 32) |
+        ((uint64_t)buffer[16] << 24) |
+        ((uint64_t)buffer[17] << 16) |
+        ((uint64_t)buffer[18] << 8) |
+        (uint64_t)buffer[19];
+    memcpy(value.tip_id, buffer + 20, 32);
+    memcpy(value.cumulative_work, buffer + 52, 40);
+    value.block_count = stnc_stnp_read_u32(buffer + 92);
+
+    if (value.block_count == 0u ||
+        value.height != (uint64_t)value.block_count - UINT64_C(1)) {
+        return 1;
+    }
+
+    *state = value;
+    return 0;
+}
+
 int stnc_stnp_encode_get_peers(
     uint8_t *buffer,
     size_t capacity,
