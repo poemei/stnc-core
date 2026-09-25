@@ -53,12 +53,23 @@ static int stnc_command_status(void)
 }
 
 
+static void stnc_print_percent(uint32_t used,uint32_t capacity)
+{
+    uint64_t tenths;
+    if(capacity==0u){printf("unavailable");return;}
+    tenths=((uint64_t)used*UINT64_C(1000))/(uint64_t)capacity;
+    printf("%" PRIu64 ".%" PRIu64 "%%",tenths/10u,tenths%10u);
+}
+
 static int stnc_command_pending(void)
 {
     stnc_pending_state state;
     if(stnc_core_pending(&state)!=0){fprintf(stderr,"Pending pool query failed.\n");return 1;}
-    printf("Pending pool\n  Transactions: %" PRIu32 " / %" PRIu32 "\n  Bytes: %" PRIu32 " / %" PRIu32 "\n",
-        state.count,state.max_entries,state.bytes,state.max_bytes);
+    printf("Pending pool\n  Transactions: %" PRIu32 " / %" PRIu32 " (",state.count,state.max_entries);
+    stnc_print_percent(state.count,state.max_entries);
+    printf(")\n  Bytes: %" PRIu32 " / %" PRIu32 " (",state.bytes,state.max_bytes);
+    stnc_print_percent(state.bytes,state.max_bytes);
+    printf(")\n");
     return 0;
 }
 
@@ -203,7 +214,7 @@ static int stnc_command_transfer(int argc,char **argv)
         printf(result.result==STNC_STNC_SUBMISSION_ADMITTED?"Transfer admitted\n":"Transfer already pending\n");
         printf("Transaction: ");stnc_print_id(result.transaction_id);
         if(stnc_core_balance(source,&balance)==0)printf("Accepted balance: %" PRIu64 "\n",balance);
-        else printf("Accepted balance: pending Chain state refresh\n");
+        else printf("Accepted balance: unavailable\n");
         return 0;
     }
     fprintf(stderr,"Transfer rejected: %s (%u)\n",stnc_submission_name(result.result),(unsigned int)result.result);return 1;
