@@ -78,6 +78,16 @@ static int check_queries(void)
     return 0;
 }
 
+static int check_pending(void)
+{
+    uint8_t payload[STNC_STNC_PENDING_SIZE]={0,0,0,2,0,0,0,64,0,0,0,214,0,16,0,0};
+    stnc_pending_state state;
+    if(stnc_stnc_decode_pending(payload,sizeof(payload),&state)!=0||
+       state.count!=2u||state.max_entries!=64u||state.bytes!=214u||state.max_bytes!=1048576u)return 1;
+    payload[3]=65u;if(stnc_stnc_decode_pending(payload,sizeof(payload),&state)==0)return 1;
+    return 0;
+}
+
 static int check_submission(void)
 {
     uint8_t tx[214]={0};uint8_t frame[STNC_STNC_HEADER_SIZE+sizeof(tx)];uint8_t response[STNC_STNC_SUBMISSION_RESPONSE_SIZE]={0};
@@ -119,7 +129,7 @@ int main(void)
         return 1;
     }
 
-    if (check_queries() != 0 || check_submission() != 0) {
+    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0) {
         return 1;
     }
 
