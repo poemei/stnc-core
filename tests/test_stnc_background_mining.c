@@ -47,7 +47,7 @@ int stnc_core_submit_work(const uint8_t parent_id[32],const uint8_t work_id[32],
 int main(void)
 {
     stnc_mining_service_status status;
-    memset(&config,0,sizeof(config));strcpy(config.mining_backend,"automatic");config.mining_cpu_limit_percent=2u;
+    memset(&config,0,sizeof(config));memcpy(config.mining_backend,"automatic",sizeof("automatic"));config.mining_cpu_limit_percent=2u;
     if(stnc_background_mining_init()!=0)return 1;
     stnc_background_mining_tick();stnc_background_mining_status(&status);
     if(status.enabled||status.running||search_calls!=0u)return 1;
@@ -64,7 +64,7 @@ int main(void)
     if(status.running)return 1;
     stnc_background_mining_shutdown();
 
-    wallet_ok=1;strcpy(config.mining_backend,"gpu");
+    wallet_ok=1;memcpy(config.mining_backend,"gpu",sizeof("gpu"));
     if(stnc_background_mining_init()!=0)return 1;
     clock_ms=3000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
     if(status.running||search_calls!=2u)return 1;
