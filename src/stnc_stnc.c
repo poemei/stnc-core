@@ -118,6 +118,31 @@ int stnc_stnc_encode_check_work_base(
     return stnc_stnc_encode(&message,buffer,capacity,written);
 }
 
+int stnc_stnc_encode_submit_work(
+    const uint8_t parent_id[32],const uint8_t work_id[32],const char *miner_identity,
+    const uint8_t *block,size_t block_length,uint64_t request_id,
+    uint8_t *buffer,size_t capacity,size_t *written)
+{
+    stnc_stnc_message message;uint8_t *payload;size_t n;int rc;
+    if(written!=NULL)*written=0;
+    if(parent_id==NULL||work_id==NULL||miner_identity==NULL||block==NULL||
+       strlen(miner_identity)!=STNC_STNC_MINER_IDENTITY_SIZE||
+       memcmp(miner_identity,"stn0_",5u)!=0||
+       block_length<STNC_STNC_BLOCK_HEADER_SIZE||block_length>STNC_STNC_BLOCK_MAX_SIZE||
+       block_length>SIZE_MAX-STNC_STNC_MINING_SUBMISSION_PREFIX_SIZE)return 1;
+    n=STNC_STNC_MINING_SUBMISSION_PREFIX_SIZE+block_length;
+    if(n>UINT32_MAX)return 1;
+    payload=(uint8_t *)malloc(n);if(payload==NULL)return 1;
+    memcpy(payload,parent_id,32u);memcpy(payload+32u,work_id,32u);
+    stnc_stnc_write_u32(payload+64u,(uint32_t)block_length);
+    memcpy(payload+68u,miner_identity,STNC_STNC_MINER_IDENTITY_SIZE);
+    memcpy(payload+STNC_STNC_MINING_SUBMISSION_PREFIX_SIZE,block,block_length);
+    memset(&message,0,sizeof(message));message.kind=STNC_STNC_REQUEST;
+    message.method=STNC_STNC_METHOD_SUBMIT_WORK;message.code=STNC_STNC_OK;
+    message.request_id=request_id;message.payload=payload;message.length=n;
+    rc=stnc_stnc_encode(&message,buffer,capacity,written);free(payload);return rc;
+}
+
 int stnc_stnc_decode_mining_template(
     const uint8_t *payload,size_t length,stnc_mining_template *work)
 {
