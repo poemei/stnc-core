@@ -503,19 +503,26 @@ int stnc_platform_random(unsigned char *buffer,size_t length)
 int stnc_platform_sha256(const unsigned char *buffer,size_t length,unsigned char digest[32])
 {
     static BCRYPT_ALG_HANDLE algorithm=NULL;
-    BCRYPT_HASH_HANDLE hash=NULL;NTSTATUS status;
+    static BCRYPT_HASH_HANDLE hash=NULL;
+    static SRWLOCK lock=SRWLOCK_INIT;
+    NTSTATUS status;
     if(buffer==NULL||digest==NULL||length>(size_t)ULONG_MAX)return 1;
+    AcquireSRWLockExclusive(&lock);
     if(algorithm==NULL){
-        BCRYPT_ALG_HANDLE opened=NULL;
-        status=BCryptOpenAlgorithmProvider(&opened,BCRYPT_SHA256_ALGORITHM,NULL,BCRYPT_HASH_REUSABLE_FLAG);
-        if(status!=0)return 1;
-        if(InterlockedCompareExchangePointer((PVOID volatile *)&algorithm,opened,NULL)!=NULL)
-            BCryptCloseAlgorithmProvider(opened,0);
+        status=BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,NULL,BCRYPT_HASH_REUSABLE_FLAG);
+        if(status!=0){algorithm=NULL;ReleaseSRWLockExclusive(&lock);return 1;}
     }
-    status=BCryptCreateHash(algorithm,&hash,NULL,0,NULL,0,BCRYPT_HASH_REUSABLE_FLAG);
-    if(status==0)status=BCryptHashData(hash,(PUCHAR)buffer,(ULONG)length,0);
+    if(hash==NULL){
+        status=BCryptCreateHash(algorithm,&hash,NULL,0,NULL,0,BCRYPT_HASH_REUSABLE_FLAG);
+        if(status!=0){hash=NULL;ReleaseSRWLockExclusive(&lock);return 1;}
+    }
+    status=BCryptHashData(hash,(PUCHAR)buffer,(ULONG)length,0);
     if(status==0)status=BCryptFinishHash(hash,digest,32,0);
-    if(hash!=NULL)BCryptDestroyHash(hash);
+    if(status!=0){
+        BCryptDestroyHash(hash);
+        hash=NULL;
+    }
+    ReleaseSRWLockExclusive(&lock);
     return status==0?0:1;
 }
 
