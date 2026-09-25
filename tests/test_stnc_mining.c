@@ -7,6 +7,7 @@ static size_t last_length;
 static unsigned int sha_calls;
 static int sha_fail;
 static int sha_partial_fail;
+static int sha_nonzero;
 static unsigned int clear_calls;
 static size_t clear_length;
 static size_t clear_lengths[8];
@@ -37,6 +38,7 @@ int stnc_platform_sha256(const unsigned char *buffer,size_t length,unsigned char
     if(sha_partial_fail){digest[0]=0xffu;digest[31]=0xffu;return 1;}
     memcpy(last_input,buffer,length);last_length=length;
     for(i=0u;i<32u;i++)digest[i]=0u;
+    if(sha_nonzero)digest[0]=1u;
     return 0;
 }
 
@@ -84,8 +86,9 @@ int main(void)
        block[156]!=0x05u||block[157]!=0x06u||block[158]!=0x07u||block[159]!=0x08u)return TEST_FAIL();
 
     memset(block+120u,0u,32u);nonce=UINT64_MAX;memset(digest,0xa5,sizeof(digest));
-    sha_calls=0u;clear_calls=0u;clear_length=0u;memset(clear_lengths,0,sizeof(clear_lengths));
+    sha_nonzero=1;sha_calls=0u;clear_calls=0u;clear_length=0u;memset(clear_lengths,0,sizeof(clear_lengths));
     if(stnc_mining_search(block,UINT64_MAX,2u,&nonce,digest)!=STNC_MINING_EXHAUSTED)return TEST_FAIL();
+    sha_nonzero=0;
     if(sha_calls!=1u||nonce!=0u||digest[0]!=0u||digest[31]!=0u)return TEST_FAIL();
     if(clear_calls!=3u){
         fprintf(stderr,"overflow cleanup clear_calls=%u expected=3\n",clear_calls);return TEST_FAIL();
