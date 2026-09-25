@@ -25,7 +25,9 @@
 #define STNC_STNC_METHOD_DERIVE_ADDRESS 9u
 #define STNC_STNC_METHOD_BALANCE 10u
 #define STNC_STNC_METHOD_CONTRACT_STATE 11u
+#define STNC_STNC_METHOD_PENDING 0x1004u
 #define STNC_STNC_METHOD_SUBMIT_TRANSACTION 0x1005u
+#define STNC_STNC_PENDING_SIZE 16u
 #define STNC_STNC_SUBMISSION_RESPONSE_SIZE 36u
 #define STNC_STNC_TRANSACTION_MAX 66881u
 #define STNC_STNC_SUBMISSION_ADMITTED 0u
@@ -68,6 +70,13 @@ typedef struct stnc_contract_state {
     uint16_t participant_count;
     uint32_t terms_length;
 } stnc_contract_state;
+
+typedef struct stnc_pending_state {
+    uint32_t count;
+    uint32_t max_entries;
+    uint32_t bytes;
+    uint32_t max_bytes;
+} stnc_pending_state;
 
 typedef struct stnc_submission_result {
     uint16_t result;
@@ -145,6 +154,12 @@ int stnc_stnc_encode_submit_transaction(
     uint8_t *buffer,
     size_t capacity,
     size_t *written
+);
+
+int stnc_stnc_decode_pending(
+    const uint8_t *payload,
+    size_t length,
+    stnc_pending_state *state
 );
 
 int stnc_stnc_decode_submission(
