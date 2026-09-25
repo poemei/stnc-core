@@ -1,0 +1,32 @@
+#include "stnc_mining.h"
+#include "stnc_platform.h"
+#include <string.h>
+static void put64(uint8_t *p,uint64_t v){size_t i;for(i=0u;i<8u;i++)p[7u-i]=(uint8_t)(v>>(i*8u));}
+int stnc_mining_hash(const uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE],uint8_t digest[32])
+{
+    static const uint8_t domain[]="STN-CHAIN:BLOCK:ID:1";
+    uint8_t input[STNC_MINING_HASH_INPUT_SIZE];
+    if(block==NULL||digest==NULL)return 1;
+    memcpy(input,domain,sizeof(domain)-1u);input[sizeof(domain)-1u]=0u;
+    memcpy(input+sizeof(domain),block,STNC_STNC_BLOCK_HEADER_SIZE);
+    return stnc_platform_sha256(input,sizeof(input),digest);
+}
+int stnc_mining_hash_meets_target(const uint8_t digest[32],const uint8_t target[32])
+{
+    size_t i;if(digest==NULL||target==NULL)return 0;
+    for(i=0u;i<32u;i++){if(digest[i]<target[i])return 1;if(digest[i]>target[i])return 0;}return 1;
+}
+stnc_mining_result stnc_mining_search(uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE],
+    uint64_t first_nonce,uint64_t attempts,uint64_t *found_nonce,uint8_t digest[32])
+{
+    uint8_t hash[32],target[32];uint64_t i,nonce;
+    if(block==NULL||found_nonce==NULL||digest==NULL||attempts==0u)return STNC_MINING_ERROR;
+    memcpy(target,block+120u,32u);
+    for(i=0u;i<attempts;i++){
+        nonce=first_nonce+i;if(nonce<first_nonce)return STNC_MINING_EXHAUSTED;
+        put64(block+STNC_STNC_MINING_NONCE_OFFSET,nonce);
+        if(stnc_mining_hash(block,hash)!=0)return STNC_MINING_ERROR;
+        if(stnc_mining_hash_meets_target(hash,target)){*found_nonce=nonce;memcpy(digest,hash,32u);return STNC_MINING_FOUND;}
+    }
+    return STNC_MINING_EXHAUSTED;
+}
