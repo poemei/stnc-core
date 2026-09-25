@@ -4,6 +4,7 @@
 
 #include "stnc_command.h"
 #include "stnc_core.h"
+#include "stnc_mining.h"
 #include "stnc_contract_status.h"
 #include "stnc_stnc.h"
 #include "stnc_wallet.h"
@@ -29,6 +30,7 @@ static void stnc_command_print_usage(void)
         "  stnc-core wallet balance\n"
         "  stnc-core transfer <stnw0_...> <units>\n"
         "  stnc-core contract state <stnc0_...>\n"
+        "  stnc-core mining mine-once <attempts>\n"
         "  stnc-core help\n"
     );
 }
@@ -151,7 +153,37 @@ static int stnc_command_contract(int argc, char **argv)
 static int stnc_command_mining(int argc,char **argv)
 {
     size_t i;
-    if(argc!=3){stnc_command_print_usage();return 1;}
+    if(argc!=3&&argc!=4){stnc_command_print_usage();return 1;}
+    if(strcmp(argv[2],"mine-once")==0){
+        uint8_t *payload=NULL,block[STNC_STNC_BLOCK_HEADER_SIZE],digest[32],accepted_id[32],accepted_work[40];
+        size_t payload_length=0u;stnc_mining_template work;stnc_mining_context checked;
+        uint64_t attempts=0u,nonce=0u,height=0u;size_t j;stnc_wallet_key key;char address[STNC_WALLET_ADDRESS_SIZE+1u];\n        memset(&key,0,sizeof(key));
+        if(argc!=4||argv[3][0]=='\0'){stnc_command_print_usage();return 1;}
+        for(j=0u;argv[3][j]!='\0';j++){unsigned int d;if(argv[3][j]<'0'||argv[3][j]>'9')return 1;d=(unsigned int)(argv[3][j]-'0');if(attempts>(UINT64_MAX-d)/10u)return 1;attempts=attempts*10u+d;}
+        if(attempts==0u){fprintf(stderr,"Mining attempts must be greater than zero.\n");return 1;}
+        if(stnc_wallet_store_load(&key)!=0||stnc_wallet_address(&key,address)!=0){stnc_wallet_clear(&key);fprintf(stderr,"Mining requires a valid Core wallet.\n");return 1;}
+        stnc_wallet_clear(&key);
+        if(stnc_core_mining_template(&payload,&payload_length,&work)!=0||work.block_length!=sizeof(block)){
+            stnc_core_mining_template_release(payload);fprintf(stderr,"Mining template unavailable or unsupported.\n");return 1;
+        }
+        memcpy(block,work.block,sizeof(block));
+        if(stnc_core_check_work_base(work.parent_id,&checked)!=0){stnc_core_mining_template_release(payload);fprintf(stderr,"Mining work base is stale.\n");return 1;}
+        switch(stnc_mining_search(block,0u,attempts,&nonce,digest)){
+        case STNC_MINING_FOUND:
+            if(stnc_core_check_work_base(work.parent_id,&checked)!=0){stnc_core_mining_template_release(payload);fprintf(stderr,"Solved mining work became stale.\n");return 1;}
+            if(stnc_core_submit_work(work.parent_id,work.work_id,address,block,sizeof(block),accepted_id,&height,accepted_work)!=0){
+                stnc_core_mining_template_release(payload);fprintf(stderr,"Solved mining work was not accepted by Chain.\n");return 1;
+            }
+            printf("Mining solution accepted\n  Nonce: %" PRIu64 "\n  Height: %" PRIu64 "\n  Block: ",nonce,height);
+            for(j=0u;j<32u;j++)printf("%02x",(unsigned int)accepted_id[j]);printf("\n");
+            stnc_core_mining_template_release(payload);return 0;
+        case STNC_MINING_EXHAUSTED:
+            printf("Mining pass complete\n  Attempts: %" PRIu64 "\n  Solution: none\n",attempts);
+            stnc_core_mining_template_release(payload);return 0;
+        default:
+            stnc_core_mining_template_release(payload);fprintf(stderr,"Mining worker failed.\n");return 1;
+        }
+    }
     if(strcmp(argv[2],"status")==0){
         stnc_mining_context context;
         if(stnc_core_mining_context(&context)!=0){fprintf(stderr,"Mining context unavailable.\n");return 1;}
