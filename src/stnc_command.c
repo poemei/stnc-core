@@ -218,6 +218,19 @@ static int stnc_command_mining(int argc,char **argv)
             for(j=0u;j<32u;j++)printf("%02x",(unsigned int)accepted_id[j]);printf("\n");
             stnc_core_mining_template_release(payload);return 0;
         case STNC_MINING_EXHAUSTED:
+            {stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
+            if(base!=STNC_CORE_WORK_BASE_CURRENT){
+                stnc_core_mining_template_release(payload);
+                fprintf(stderr,base==STNC_CORE_WORK_BASE_STALE?
+                    "Mining pass exhausted after its work became stale.\n":
+                    "Mining pass final work-base check failed.\n");
+                return 1;
+            }
+            if(!checked.template_available||memcmp(checked.tip_id,work.parent_id,32u)!=0||
+               memcmp(checked.target,block+120u,32u)!=0){
+                stnc_core_mining_template_release(payload);
+                fprintf(stderr,"Mining pass exhausted against changed Chain context.\n");return 1;
+            }}
             printf("Mining pass complete\n  Attempts: %" PRIu64 "\n  Solution: none\n",attempts);
             stnc_core_mining_template_release(payload);return 0;
         default:
