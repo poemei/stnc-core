@@ -239,6 +239,10 @@ static int stnc_command_mining(int argc,char **argv)
             for(j=0u;j<32u;j++)printf("%02x",(unsigned int)accepted_id[j]);printf("\n");
             stnc_core_mining_template_release(payload);return 0;
         case STNC_MINING_EXHAUSTED:
+            if(nonce!=0u||memcmp(digest,(const uint8_t[32]){0},32u)!=0){
+                stnc_core_mining_template_release(payload);
+                fprintf(stderr,"Mining worker returned invalid exhausted-state outputs.\n");return 1;
+            }
             {stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
             if(base!=STNC_CORE_WORK_BASE_CURRENT){
                 stnc_core_mining_template_release(payload);
