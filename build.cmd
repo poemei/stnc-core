@@ -36,6 +36,7 @@ cl /nologo /W4 /TC /Iincludes ^
     src\stnc_log.c ^
     src\stnc_mining.c ^
     src\stnc_mining_service.c ^
+    src\stnc_stratum.c ^
     src\stnc_config.c ^
     src\stnc_directory.c ^
     src\stnc_http.c ^
@@ -164,6 +165,19 @@ build\test-stnc-mining-service.exe
 if errorlevel 1 (
     echo.
     echo MINING SERVICE TEST FAILED
+    exit /b 1
+)
+
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_stratum.c src\stnc_stratum.c /Fe:build\test-stnc-stratum.exe
+if errorlevel 1 (
+    echo.
+    echo STRATUM PROTOCOL TEST BUILD FAILED
+    exit /b 1
+)
+build\test-stnc-stratum.exe
+if errorlevel 1 (
+    echo.
+    echo STRATUM PROTOCOL TEST FAILED
     exit /b 1
 )
 
