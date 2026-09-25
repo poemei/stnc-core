@@ -4,10 +4,14 @@
 
 static uint8_t last_input[STNC_MINING_HASH_INPUT_SIZE];
 static size_t last_length;
+static unsigned int sha_calls;
+static int sha_fail;
 
 int stnc_platform_sha256(const unsigned char *buffer,size_t length,unsigned char digest[32])
 {
     size_t i;
+    sha_calls++;
+    if(sha_fail)return 1;
     if(buffer==NULL||digest==NULL||length>sizeof(last_input))return 1;
     memcpy(last_input,buffer,length);last_length=length;
     for(i=0u;i<32u;i++)digest[i]=0u;
@@ -38,8 +42,9 @@ int main(void)
        memcmp(last_input+sizeof(domain),block,sizeof(block))!=0)return 1;
 
     memset(block,0,sizeof(block));memset(block+120u,0xff,32u);memcpy(original,block,sizeof(block));
+    sha_calls=0u;
     if(stnc_mining_search(block,UINT64_C(0x0102030405060708),1u,&nonce,digest)!=STNC_MINING_FOUND||
-       nonce!=UINT64_C(0x0102030405060708))return 1;
+       nonce!=UINT64_C(0x0102030405060708)||sha_calls!=1u)return 1;
     if(memcmp(block,original,STNC_STNC_MINING_NONCE_OFFSET)!=0||
        memcmp(block+STNC_STNC_MINING_NONCE_OFFSET+STNC_STNC_MINING_NONCE_SIZE,
               original+STNC_STNC_MINING_NONCE_OFFSET+STNC_STNC_MINING_NONCE_SIZE,
@@ -47,8 +52,12 @@ int main(void)
     if(block[152]!=0x01u||block[153]!=0x02u||block[154]!=0x03u||block[155]!=0x04u||
        block[156]!=0x05u||block[157]!=0x06u||block[158]!=0x07u||block[159]!=0x08u)return 1;
 
-    memset(block+120u,0u,32u);
-    if(stnc_mining_search(block,UINT64_MAX,2u,&nonce,digest)!=STNC_MINING_EXHAUSTED)return 1;
+    memset(block+120u,0u,32u);sha_calls=0u;
+    if(stnc_mining_search(block,UINT64_MAX,2u,&nonce,digest)!=STNC_MINING_EXHAUSTED||sha_calls!=1u)return 1;
+
+    memset(block+120u,0xff,32u);sha_fail=1;
+    if(stnc_mining_search(block,0u,1u,&nonce,digest)!=STNC_MINING_ERROR)return 1;
+    sha_fail=0;
 
     if(stnc_mining_search(block,0u,0u,&nonce,digest)!=STNC_MINING_ERROR)return 1;
     if(stnc_mining_search(NULL,0u,1u,&nonce,digest)!=STNC_MINING_ERROR)return 1;
