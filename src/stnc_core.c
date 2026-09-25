@@ -10,6 +10,7 @@
 #include "stnc_network.h"
 #include "stnc_platform.h"
 #include "stnc_peers.h"
+#include "stnc_peer_select.h"
 #include "stnc_stnc.h"
 #include "stnc_stnp.h"
 
@@ -26,6 +27,7 @@ static stnc_network_connection chain_connection;
 static stnc_core_chain_state chain_state;
 static uint32_t root_peer_capabilities;
 static stnc_peer_candidates peer_candidates;
+static stnc_peer_qualified_set qualified_peers;
 
 static void stnc_core_clear_chain_state(void)
 {
@@ -225,6 +227,139 @@ static int stnc_core_discover_directory_peers(void)
             "ChAoS MVC peer directory admitted %zu candidate(s); Core set contains %zu candidate(s).",
             peer_candidates.count - previous_count,
             peer_candidates.count
+        ) < 0) {
+        return 1;
+    }
+
+    stnc_log_info(message);
+    return 0;
+}
+
+
+static int stnc_core_qualify_candidate(
+    const stnc_peer_candidate *candidate,
+    stnc_peer_qualified *qualified
+)
+{
+    stnc_network_connection connection;
+    stnc_stnp_hello hello;
+    uint8_t request[STNC_STNP_HEADER_SIZE + STNC_STNP_HELLO_SIZE];
+    uint8_t response[STNC_STNP_HEADER_SIZE + STNC_STNP_HELLO_SIZE];
+    size_t written;
+    uint64_t started;
+    uint64_t finished;
+
+    if (candidate == NULL || qualified == NULL || !chain_state.available) {
+        return 1;
+    }
+
+    memset(&connection, 0, sizeof(connection));
+    memset(&hello, 0, sizeof(hello));
+    memset(qualified, 0, sizeof(*qualified));
+
+    started = stnc_platform_monotonic_ms();
+
+    if (stnc_network_connect(
+            &connection,
+            candidate->host,
+            candidate->port
+        ) != 0) {
+        return 1;
+    }
+
+    if (stnc_stnp_encode_hello(
+            chain_state.network_id,
+            chain_state.genesis_id,
+            1u,
+            request,
+            sizeof(request),
+            &written
+        ) != 0 ||
+        written != sizeof(request) ||
+        stnc_network_send(&connection, request, written) != 0 ||
+        stnc_network_receive(&connection, response, sizeof(response)) != 0 ||
+        stnc_stnp_decode_hello(response, sizeof(response), &hello) != 0 ||
+        memcmp(hello.network_id, chain_state.network_id, 32) != 0 ||
+        memcmp(hello.genesis_id, chain_state.genesis_id, 32) != 0 ||
+        (hello.capabilities != 1u && hello.capabilities != 3u)) {
+        stnc_network_disconnect(&connection);
+        return 1;
+    }
+
+    finished = stnc_platform_monotonic_ms();
+    stnc_network_disconnect(&connection);
+
+    qualified->candidate = *candidate;
+    qualified->capabilities = hello.capabilities;
+    qualified->latency_ms = finished >= started
+        ? finished - started
+        : 0u;
+
+    return 0;
+}
+
+static int stnc_core_select_peer(void)
+{
+    const stnc_peer_qualified *selected;
+    size_t index;
+    char message[512];
+
+    stnc_peer_select_clear(&qualified_peers);
+
+    for (index = 0; index < peer_candidates.count; ++index) {
+        stnc_peer_qualified qualified;
+
+        if (stnc_core_qualify_candidate(
+                &peer_candidates.entries[index],
+                &qualified
+            ) != 0) {
+            if (snprintf(
+                    message,
+                    sizeof(message),
+                    "Chain P2P candidate rejected: %s:%u",
+                    peer_candidates.entries[index].host,
+                    (unsigned int)peer_candidates.entries[index].port
+                ) < 0) {
+                return 1;
+            }
+
+            stnc_log_info(message);
+            continue;
+        }
+
+        if (stnc_peer_select_add(&qualified_peers, &qualified) != 0) {
+            return 1;
+        }
+
+        if (snprintf(
+                message,
+                sizeof(message),
+                "Chain P2P candidate qualified: %s:%u latency=%" PRIu64 "ms capabilities=%" PRIu32,
+                qualified.candidate.host,
+                (unsigned int)qualified.candidate.port,
+                qualified.latency_ms,
+                qualified.capabilities
+            ) < 0) {
+            return 1;
+        }
+
+        stnc_log_info(message);
+    }
+
+    selected = stnc_peer_select_best(&qualified_peers);
+
+    if (selected == NULL) {
+        stnc_log_info("No discovered Chain P2P candidate qualified for selection.");
+        return 0;
+    }
+
+    if (snprintf(
+            message,
+            sizeof(message),
+            "Selected Chain P2P peer: %s:%u latency=%" PRIu64 "ms",
+            selected->candidate.host,
+            (unsigned int)selected->candidate.port,
+            selected->latency_ms
         ) < 0) {
         return 1;
     }
@@ -503,6 +638,7 @@ int stnc_core_init(void)
 
     stnc_core_clear_chain_state();
     stnc_peers_clear(&peer_candidates);
+    stnc_peer_select_clear(&qualified_peers);
 
     if (stnc_platform_init() != 0) {
         return 1;
@@ -581,6 +717,10 @@ int stnc_core_init(void)
 
     if (stnc_core_discover_directory_peers() != 0) {
         stnc_log_info("STNC Core will continue without the public peer directory.");
+    }
+
+    if (stnc_core_select_peer() != 0) {
+        stnc_log_error("Automatic Chain P2P peer selection failed.");
     }
 
     return 0;
@@ -677,6 +817,7 @@ void stnc_core_shutdown(void)
 
     root_peer_capabilities = 0;
     stnc_peers_clear(&peer_candidates);
+    stnc_peer_select_clear(&qualified_peers);
     stnc_core_clear_chain_state();
     stnc_network_shutdown();
     stnc_config_shutdown();
