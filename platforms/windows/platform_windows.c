@@ -3,6 +3,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <winhttp.h>
 
 #include <limits.h>
 #include <stddef.h>
@@ -346,4 +347,147 @@ void stnc_platform_network_disconnect(void *handle)
     socket_handle = (SOCKET)(uintptr_t)handle;
     shutdown(socket_handle, SD_BOTH);
     closesocket(socket_handle);
+}
+
+int stnc_platform_https_get(
+    const char *host,
+    const char *path,
+    char *buffer,
+    size_t capacity,
+    size_t *length
+)
+{
+    wchar_t wide_host[256];
+    wchar_t wide_path[1024];
+    HINTERNET session;
+    HINTERNET connection;
+    HINTERNET request;
+    DWORD status;
+    DWORD status_size;
+    size_t used;
+    int result;
+
+    if (length != NULL) {
+        *length = 0;
+    }
+
+    if (!platform_initialized ||
+        host == NULL || host[0] == '\0' ||
+        path == NULL || path[0] != '/' ||
+        buffer == NULL || capacity < 2u ||
+        length == NULL ||
+        MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, host, -1,
+            wide_host, (int)(sizeof(wide_host) / sizeof(wide_host[0]))) == 0 ||
+        MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1,
+            wide_path, (int)(sizeof(wide_path) / sizeof(wide_path[0]))) == 0) {
+        return 1;
+    }
+
+    session = WinHttpOpen(
+        L"STNC-Core/0.1",
+        WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+        WINHTTP_NO_PROXY_NAME,
+        WINHTTP_NO_PROXY_BYPASS,
+        0
+    );
+
+    if (session == NULL) {
+        return 1;
+    }
+
+    connection = WinHttpConnect(
+        session,
+        wide_host,
+        INTERNET_DEFAULT_HTTPS_PORT,
+        0
+    );
+
+    if (connection == NULL) {
+        WinHttpCloseHandle(session);
+        return 1;
+    }
+
+    request = WinHttpOpenRequest(
+        connection,
+        L"GET",
+        wide_path,
+        NULL,
+        WINHTTP_NO_REFERER,
+        WINHTTP_DEFAULT_ACCEPT_TYPES,
+        WINHTTP_FLAG_SECURE
+    );
+
+    if (request == NULL) {
+        WinHttpCloseHandle(connection);
+        WinHttpCloseHandle(session);
+        return 1;
+    }
+
+    result = 1;
+    used = 0;
+
+    if (WinHttpSetTimeouts(request, 5000, 5000, 5000, 5000) &&
+        WinHttpSendRequest(
+            request,
+            WINHTTP_NO_ADDITIONAL_HEADERS,
+            0,
+            WINHTTP_NO_REQUEST_DATA,
+            0,
+            0,
+            0
+        ) &&
+        WinHttpReceiveResponse(request, NULL)) {
+        status = 0;
+        status_size = (DWORD)sizeof(status);
+
+        if (WinHttpQueryHeaders(
+                request,
+                WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                WINHTTP_HEADER_NAME_BY_INDEX,
+                &status,
+                &status_size,
+                WINHTTP_NO_HEADER_INDEX
+            ) &&
+            status == 200u) {
+            for (;;) {
+                DWORD received;
+                size_t remaining;
+
+                if (used + 1u >= capacity) {
+                    break;
+                }
+
+                remaining = capacity - used - 1u;
+
+                if (remaining > (size_t)DWORD_MAX) {
+                    remaining = (size_t)DWORD_MAX;
+                }
+
+                received = 0;
+
+                if (!WinHttpReadData(
+                        request,
+                        buffer + used,
+                        (DWORD)remaining,
+                        &received
+                    )) {
+                    break;
+                }
+
+                if (received == 0u) {
+                    buffer[used] = '\0';
+                    *length = used;
+                    result = 0;
+                    break;
+                }
+
+                used += (size_t)received;
+            }
+        }
+    }
+
+    WinHttpCloseHandle(request);
+    WinHttpCloseHandle(connection);
+    WinHttpCloseHandle(session);
+    return result;
 }
