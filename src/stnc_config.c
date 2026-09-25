@@ -543,9 +543,10 @@ static int stnc_config_write_active(void)
         active_config.root_peer,(unsigned int)active_config.root_peer_port,
         active_config.mining_enabled?"true":"false",active_config.mining_backend,
         active_config.mining_cpu_limit_percent,active_config.stratum_host,
-        (unsigned int)active_config.stratum_port)<0||fclose(file)!=0){
+        (unsigned int)active_config.stratum_port)<0){
         fclose(file);remove(temporary);return 1;
     }
+    if(fclose(file)!=0){remove(temporary);return 1;}
     if(remove(path)!=0&&errno!=ENOENT){remove(temporary);return 1;}
     if(rename(temporary,path)!=0){remove(temporary);return 1;}
     return 0;
