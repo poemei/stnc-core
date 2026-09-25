@@ -11,6 +11,8 @@ typedef struct stnc_config {
     int mining_enabled;
     char mining_backend[16];
     unsigned int mining_cpu_limit_percent;
+    char stratum_host[STNC_CONFIG_PEER_MAX];
+    unsigned short stratum_port;
 } stnc_config;
 
 /*
