@@ -129,7 +129,14 @@ static int stnc_core_submit_peer_history(uint32_t peer_block_count)
            lengths[i]>STNC_HISTORY_EVIDENCE_MAX_BYTES-total-4u)goto done;
         total+=4u+lengths[i];
     }
-    if(stnc_core_submit_suffix_evidence(prefix,blocks,lengths,suffix_count)!=0)goto done;
+    {
+        int submit=stnc_core_submit_suffix_evidence(prefix,blocks,lengths,suffix_count);
+        if(submit==2){
+            stnc_log_info("Chain retained current accepted state after valid peer suffix evidence.");
+            rc=0;goto done;
+        }
+        if(submit!=0)goto done;
+    }
     stnc_log_info("Chain accepted a preferred bounded peer suffix.");rc=0;
 done:
     if(owned!=NULL)for(i=0u;i<(size_t)suffix_count;i++)free(owned[i]);
@@ -1426,8 +1433,9 @@ int stnc_core_submit_suffix_evidence(
        stnc_network_receive(&chain_connection,header,sizeof(header))!=0||
        stnc_stnc_decode_header(header,sizeof(header),&response)!=0||
        response.method!=STNC_STNC_METHOD_SUBMIT_SUFFIX_EVIDENCE||
-       response.request_id!=STNC_SUFFIX_EVIDENCE_REQUEST_ID||response.code!=STNC_STNC_OK||
-       response.length!=STNC_STNC_BLOCK_ACCEPTED_SIZE)goto done;
+       response.request_id!=STNC_SUFFIX_EVIDENCE_REQUEST_ID)goto done;
+    if(response.code==STNC_STNC_CURRENT&&response.length==0u){rc=2;goto done;}
+    if(response.code!=STNC_STNC_OK||response.length!=STNC_STNC_BLOCK_ACCEPTED_SIZE)goto done;
     payload=(uint8_t *)malloc(response.length);if(payload==NULL)goto done;
     if(stnc_network_receive(&chain_connection,payload,response.length)!=0||
        stnc_stnc_decode_block_accepted(payload,response.length,tip,&height,work)!=0)goto done;
