@@ -2,11 +2,12 @@
 #include <string.h>
 #include "stnc_stratum_client.h"
 
-static uint8_t sent[256];static size_t sent_len;static uint8_t incoming[512];static size_t incoming_len,incoming_at;static int disconnected;
+static uint8_t sent[256];static size_t sent_len;static uint8_t incoming[512];static size_t incoming_len,incoming_at;static int disconnected;static int ready;
 int stnc_platform_network_connect(void **handle,const char *peer,unsigned short port)
 {if(handle==NULL||strcmp(peer,"stratum.test")!=0||port!=18475u)return 1;*handle=(void *)1;return 0;}
 int stnc_platform_network_send(void *handle,const unsigned char *buffer,size_t length)
 {if(handle!=(void *)1||sent_len+length>sizeof(sent))return 1;memcpy(sent+sent_len,buffer,length);sent_len+=length;return 0;}
+int stnc_platform_network_read_ready(void *handle){return handle==(void *)1?ready:-1;}
 int stnc_platform_network_receive(void *handle,unsigned char *buffer,size_t length)
 {if(handle!=(void *)1||incoming_at+length>incoming_len)return 1;memcpy(buffer,incoming+incoming_at,length);incoming_at+=length;return 0;}
 void stnc_platform_network_disconnect(void *handle){if(handle==(void *)1)disconnected++;}
@@ -23,7 +24,8 @@ int main(void)
     memset(incoming,0,sizeof(incoming));incoming[0]='S';incoming[1]='T';incoming[2]='N';incoming[3]='M';incoming[4]=1u;incoming[5]=1u;
     for(i=0u;i<32u;i++){incoming[8u+i]=(uint8_t)i;incoming[72u+i]=(uint8_t)(i+1u);incoming[116u+120u+i]=(uint8_t)(i+1u);}
     w32(incoming+104u,168u);w64(incoming+108u,9u);w64(incoming+116u+152u,9u);incoming_len=284u;incoming_at=0u;
-    if(stnc_stratum_client_receive_job(&client,&job,block,sizeof(block))!=0||job.initial_nonce!=9u)return 1;
+    ready=0;if(stnc_stratum_client_poll_job(&client,&job,block,sizeof(block))!=1||incoming_at!=0u)return 1;
+    ready=1;if(stnc_stratum_client_poll_job(&client,&job,block,sizeof(block))!=0||job.initial_nonce!=9u)return 1;
 
     sent_len=0u;memset(incoming,0,sizeof(incoming));incoming[0]='S';incoming[1]='T';incoming[2]='N';incoming[3]='M';incoming[4]=1u;incoming[5]=3u;
     w32(incoming+8u,0u);incoming_len=12u;incoming_at=0u;
