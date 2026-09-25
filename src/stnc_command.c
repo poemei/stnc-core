@@ -134,6 +134,22 @@ static int stnc_command_wallet(int argc,char **argv)
 }
 
 
+static const char *stnc_submission_name(uint16_t result)
+{
+    switch(result){
+    case STNC_STNC_SUBMISSION_ADMITTED:return "admitted";
+    case STNC_STNC_SUBMISSION_DUPLICATE:return "duplicate";
+    case STNC_STNC_SUBMISSION_POOL_FULL:return "pool-full";
+    case STNC_STNC_SUBMISSION_BAD:return "bad-submission";
+    case STNC_STNC_SUBMISSION_UNSUPPORTED:return "unsupported";
+    case STNC_STNC_SUBMISSION_REPLAY:return "replay";
+    case STNC_STNC_SUBMISSION_UNAUTHORIZED:return "unauthorized";
+    case STNC_STNC_SUBMISSION_UNAVAILABLE:return "unavailable";
+    case STNC_STNC_SUBMISSION_INTERNAL:return "internal";
+    default:return "unknown";
+    }
+}
+
 static void stnc_print_id(const uint8_t id[32])
 {
     size_t i;for(i=0;i<32u;i++)printf("%02x",(unsigned int)id[i]);printf("\n");
@@ -142,7 +158,7 @@ static void stnc_print_id(const uint8_t id[32])
 static int stnc_command_transfer(int argc,char **argv)
 {
     stnc_wallet_key key;char source[STNC_WALLET_ADDRESS_SIZE+1u];uint8_t nonce[STNC_WALLET_NONCE_SIZE];
-    uint8_t transaction[STNC_WALLET_TRANSFER_SIZE];stnc_submission_result result;uint64_t units=0;size_t i;
+    uint8_t transaction[STNC_WALLET_TRANSFER_SIZE];stnc_submission_result result;uint64_t units=0,balance=0;size_t i;
     if(argc!=4){stnc_command_print_usage();return 1;}
     if(argv[3][0]=='\0')return 1;
     for(i=0;argv[3][i]!='\0';i++){unsigned int digit;if(argv[3][i]<'0'||argv[3][i]>'9')return 1;digit=(unsigned int)(argv[3][i]-'0');if(units>(UINT64_MAX-digit)/10u)return 1;units=units*10u+digit;}
@@ -158,9 +174,12 @@ static int stnc_command_transfer(int argc,char **argv)
     stnc_platform_secure_clear(transaction,sizeof(transaction));
     if(result.result==STNC_STNC_SUBMISSION_ADMITTED||result.result==STNC_STNC_SUBMISSION_DUPLICATE){
         printf(result.result==STNC_STNC_SUBMISSION_ADMITTED?"Transfer admitted\n":"Transfer already pending\n");
-        printf("Transaction: ");stnc_print_id(result.transaction_id);return 0;
+        printf("Transaction: ");stnc_print_id(result.transaction_id);
+        if(stnc_core_balance(source,&balance)==0)printf("Accepted balance: %" PRIu64 "\n",balance);
+        else printf("Accepted balance: pending Chain state refresh\n");
+        return 0;
     }
-    fprintf(stderr,"Transfer rejected: submission result %u\n",(unsigned int)result.result);return 1;
+    fprintf(stderr,"Transfer rejected: %s (%u)\n",stnc_submission_name(result.result),(unsigned int)result.result);return 1;
 }
 
 int stnc_command_run(int argc, char **argv)
