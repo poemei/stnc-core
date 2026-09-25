@@ -34,12 +34,14 @@ static stnc_mining_backend configured_backend(const char *name)
 
 static int mining_identity(char identity[STNC_STNC_ADDRESS_IDENTITY_SIZE+1u])
 {
-    stnc_wallet_key key;int rc;
-    memset(&key,0,sizeof(key));
+    stnc_wallet_key key;char wallet_address[STNC_WALLET_ADDRESS_SIZE+1u];int rc;
+    memset(&key,0,sizeof(key));memset(wallet_address,0,sizeof(wallet_address));
+    if(!stnc_wallet_store_exists())return 1;
     rc=stnc_wallet_store_load(&key);
+    if(rc==0)rc=stnc_wallet_address(&key,wallet_address);
     if(rc==0)rc=stnc_core_derive_address(STNC_STNC_ADDRESS_IDENTITY,key.public_key,
         sizeof(key.public_key),identity,STNC_STNC_ADDRESS_IDENTITY_SIZE+1u);
-    stnc_wallet_clear(&key);return rc;
+    stnc_wallet_clear(&key);memset(wallet_address,0,sizeof(wallet_address));return rc;
 }
 
 int stnc_background_mining_init(void)
