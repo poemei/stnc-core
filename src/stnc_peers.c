@@ -145,6 +145,12 @@ int stnc_peers_add_stnp(
         stnc_peer_candidate candidate;
         int written;
 
+        if (peers->entries[index].address[0] == 0u ||
+            peers->entries[index].address[0] >= 224u ||
+            peers->entries[index].port == 0u) {
+            return 1;
+        }
+
         memset(&candidate, 0, sizeof(candidate));
 
         written = snprintf(
