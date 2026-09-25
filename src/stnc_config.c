@@ -18,6 +18,8 @@
 #define STNC_DEFAULT_MINING_ENABLED 0
 #define STNC_DEFAULT_MINING_BACKEND "automatic"
 #define STNC_DEFAULT_MINING_CPU_LIMIT_PERCENT 2u
+#define STNC_DEFAULT_STRATUM_HOST "stratum.stn-chain.org"
+#define STNC_DEFAULT_STRATUM_PORT 18475
 
 #define STNC_CONFIG_PATH_MAX 1024
 #define STNC_CONFIG_FILE_MAX 4096
@@ -61,6 +63,8 @@ static int stnc_config_set_defaults(void)
     active_config.mining_enabled = STNC_DEFAULT_MINING_ENABLED;
     memcpy(active_config.mining_backend, STNC_DEFAULT_MINING_BACKEND, sizeof(STNC_DEFAULT_MINING_BACKEND));
     active_config.mining_cpu_limit_percent = STNC_DEFAULT_MINING_CPU_LIMIT_PERCENT;
+    memcpy(active_config.stratum_host, STNC_DEFAULT_STRATUM_HOST, sizeof(STNC_DEFAULT_STRATUM_HOST));
+    active_config.stratum_port = STNC_DEFAULT_STRATUM_PORT;
 
     return 0;
 }
@@ -113,12 +117,16 @@ static int stnc_config_write_defaults(const char *path)
             "    \"root_peer_port\": %u,\n"
             "    \"mining_enabled\": false,\n"
             "    \"mining_backend\": \"automatic\",\n"
-            "    \"mining_cpu_limit_percent\": 2\n"
+            "    \"mining_cpu_limit_percent\": 2,\n"
+            "    \"stratum_host\": \"%s\",\n"
+            "    \"stratum_port\": %u\n"
             "}\n",
             active_config.peer,
             (unsigned int)active_config.port,
             active_config.root_peer,
-            (unsigned int)active_config.root_peer_port
+            (unsigned int)active_config.root_peer_port,
+            active_config.stratum_host,
+            (unsigned int)active_config.stratum_port
         ) < 0) {
         fclose(file);
         return 1;
@@ -435,6 +443,16 @@ static int stnc_config_load(const char *path)
         if(stnc_config_parse_named_bool(json,"mining_enabled",&active_config.mining_enabled)!=0||
            stnc_config_parse_mining_backend(json,active_config.mining_backend,sizeof(active_config.mining_backend))!=0||
            stnc_config_parse_cpu_limit(json,&active_config.mining_cpu_limit_percent)!=0)return 1;
+    }
+
+    if(stnc_config_find_value(json,"stratum_host")==NULL&&
+       stnc_config_find_value(json,"stratum_port")==NULL){
+        memcpy(active_config.stratum_host,STNC_DEFAULT_STRATUM_HOST,sizeof(STNC_DEFAULT_STRATUM_HOST));
+        active_config.stratum_port=STNC_DEFAULT_STRATUM_PORT;
+    }else{
+        if(stnc_config_parse_named_peer(json,"stratum_host",active_config.stratum_host,
+                sizeof(active_config.stratum_host))!=0||
+           stnc_config_parse_named_port(json,"stratum_port",&active_config.stratum_port)!=0)return 1;
     }
 
     return 0;
