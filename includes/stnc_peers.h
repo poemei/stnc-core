@@ -7,9 +7,10 @@
 #include "stnc_stnp.h"
 
 #define STNC_PEERS_MAX STNC_STNP_PEER_MAX
+#define STNC_PEER_HOST_MAX 253u
 
 typedef struct stnc_peer_candidate {
-    uint8_t address[4];
+    char host[STNC_PEER_HOST_MAX + 1u];
     uint16_t port;
 } stnc_peer_candidate;
 
