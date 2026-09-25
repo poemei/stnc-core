@@ -20,14 +20,18 @@ void stnc_stratum_client_disconnect(stnc_stratum_client *client)
     if(client==NULL)return;if(client->handle!=NULL)stnc_platform_network_disconnect(client->handle);
     client->handle=NULL;client->connected=0;
 }
-int stnc_stratum_client_receive_job(stnc_stratum_client *client,stnc_stratum_job *job,uint8_t *block,size_t capacity)
+int stnc_stratum_client_poll_job(stnc_stratum_client *client,stnc_stratum_job *job,uint8_t *block,size_t capacity)
 {
     uint8_t header[STNC_STNM_JOB_HEADER_SIZE];
-    if(client==NULL||!client->connected||job==NULL||block==NULL)return 1;
-    if(stnc_platform_network_receive(client->handle,header,sizeof(header))!=0||
+    int ready;
+    if(client==NULL||!client->connected||job==NULL||block==NULL)return -1;
+    ready=stnc_platform_network_read_ready(client->handle);
+    if(ready==0)return 1;
+    if(ready<0||
+       stnc_platform_network_receive(client->handle,header,sizeof(header))!=0||
        stnc_stratum_parse_job_header(header,job)!=0||job->block_length>capacity||
        stnc_platform_network_receive(client->handle,block,job->block_length)!=0||
-       stnc_stratum_validate_job_block(job,block,job->block_length)!=0)return 1;
+       stnc_stratum_validate_job_block(job,block,job->block_length)!=0)return -1;
     return 0;
 }
 int stnc_stratum_client_submit(stnc_stratum_client *client,const uint8_t work_id[32],uint64_t nonce,stnc_stratum_result *result)
