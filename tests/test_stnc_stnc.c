@@ -78,6 +78,23 @@ static int check_queries(void)
     return 0;
 }
 
+static int check_submission(void)
+{
+    uint8_t tx[214]={0};uint8_t frame[STNC_STNC_HEADER_SIZE+sizeof(tx)];uint8_t response[STNC_STNC_SUBMISSION_RESPONSE_SIZE]={0};
+    stnc_submission_result result;size_t written;size_t i;
+    memcpy(tx,"STNT",4);tx[5]=1;tx[7]=9;tx[11]=202;
+    if(stnc_stnc_encode_submit_transaction(tx,sizeof(tx),UINT64_C(10),frame,sizeof(frame),&written)!=0||
+       written!=sizeof(frame)||frame[8]!=0x10u||frame[9]!=0x05u||
+       memcmp(frame+STNC_STNC_HEADER_SIZE,tx,sizeof(tx))!=0)return 1;
+    response[1]=1;response[3]=STNC_STNC_SUBMISSION_ADMITTED;for(i=0;i<32u;i++)response[4+i]=(uint8_t)i;
+    if(stnc_stnc_decode_submission(response,sizeof(response),&result)!=0||result.result!=STNC_STNC_SUBMISSION_ADMITTED||
+       !result.has_transaction_id||memcmp(result.transaction_id,response+4,32u)!=0)return 1;
+    memset(response,0,sizeof(response));response[1]=1;response[3]=STNC_STNC_SUBMISSION_UNAUTHORIZED;
+    if(stnc_stnc_decode_submission(response,sizeof(response),&result)!=0||result.has_transaction_id)return 1;
+    response[4]=1;if(stnc_stnc_decode_submission(response,sizeof(response),&result)==0)return 1;
+    return 0;
+}
+
 int main(void)
 {
     uint8_t frame[STNC_STNC_DERIVE_FRAME_MAX];
@@ -102,7 +119,7 @@ int main(void)
         return 1;
     }
 
-    if (check_queries() != 0) {
+    if (check_queries() != 0 || check_submission() != 0) {
         return 1;
     }
 
