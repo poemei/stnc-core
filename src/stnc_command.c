@@ -16,6 +16,7 @@ static void stnc_command_print_usage(void)
         "  stnc-core\n"
         "  stnc-core status\n"
         "  stnc-core peers\n"
+        "  stnc-core pending\n"
         "  stnc-core address identity <source>\n"
         "  stnc-core address contract <source>\n"
         "  stnc-core address wallet <source>\n"
@@ -51,6 +52,15 @@ static int stnc_command_status(void)
     return runtime.chain_connected&&runtime.chain_state_available?0:1;
 }
 
+
+static int stnc_command_pending(void)
+{
+    stnc_pending_state state;
+    if(stnc_core_pending(&state)!=0){fprintf(stderr,"Pending pool query failed.\n");return 1;}
+    printf("Pending pool\n  Transactions: %" PRIu32 " / %" PRIu32 "\n  Bytes: %" PRIu32 " / %" PRIu32 "\n",
+        state.count,state.max_entries,state.bytes,state.max_bytes);
+    return 0;
+}
 
 static int stnc_command_peers(void)
 {
@@ -212,6 +222,8 @@ int stnc_command_run(int argc, char **argv)
         }
         return stnc_command_status();
     }
+
+    if (strcmp(argv[1], "pending") == 0) { if(argc!=2){stnc_command_print_usage();return 1;} return stnc_command_pending(); }
 
     if (strcmp(argv[1], "peers") == 0) { if(argc!=2){stnc_command_print_usage();return 1;} return stnc_command_peers(); }
 
