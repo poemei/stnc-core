@@ -266,6 +266,93 @@ int stnc_stnp_decode_headers(
     return 0;
 }
 
+int stnc_stnp_encode_get_block(
+    uint32_t index,
+    uint8_t *buffer,
+    size_t capacity,
+    size_t *written
+)
+{
+    if (written != NULL) {
+        *written = 0;
+    }
+
+    if (buffer == NULL ||
+        written == NULL ||
+        capacity < STNC_STNP_HEADER_SIZE + STNC_STNP_BLOCK_INDEX_SIZE) {
+        return 1;
+    }
+
+    memcpy(buffer, "STNP", 4);
+    stnc_stnp_write_u16(buffer + 4, STNC_STNP_VERSION);
+    stnc_stnp_write_u16(buffer + 6, STNC_STNP_GET_BLOCK);
+    stnc_stnp_write_u32(buffer + 8, STNC_STNP_BLOCK_INDEX_SIZE);
+    stnc_stnp_write_u32(buffer + STNC_STNP_HEADER_SIZE, index);
+    *written = STNC_STNP_HEADER_SIZE + STNC_STNP_BLOCK_INDEX_SIZE;
+    return 0;
+}
+
+int stnc_stnp_decode_block_header(
+    const uint8_t *buffer,
+    size_t length,
+    size_t *payload_length
+)
+{
+    uint32_t payload;
+
+    if (payload_length != NULL) {
+        *payload_length = 0;
+    }
+
+    if (buffer == NULL ||
+        payload_length == NULL ||
+        length != STNC_STNP_HEADER_SIZE ||
+        memcmp(buffer, "STNP", 4) != 0 ||
+        stnc_stnp_read_u16(buffer + 4) != STNC_STNP_VERSION ||
+        stnc_stnp_read_u16(buffer + 6) != STNC_STNP_BLOCK) {
+        return 1;
+    }
+
+    payload = stnc_stnp_read_u32(buffer + 8);
+    if (payload <= STNC_STNP_BLOCK_INDEX_SIZE ||
+        payload > STNC_STNP_BLOCK_PAYLOAD_MAX) {
+        return 1;
+    }
+
+    *payload_length = (size_t)payload;
+    return 0;
+}
+
+int stnc_stnp_decode_block(
+    const uint8_t *buffer,
+    size_t length,
+    uint32_t *index,
+    const uint8_t **block,
+    size_t *block_length
+)
+{
+    size_t payload_length;
+
+    if (buffer == NULL ||
+        index == NULL ||
+        block == NULL ||
+        block_length == NULL ||
+        length < STNC_STNP_HEADER_SIZE ||
+        stnc_stnp_decode_block_header(
+            buffer,
+            STNC_STNP_HEADER_SIZE,
+            &payload_length
+        ) != 0 ||
+        length != STNC_STNP_HEADER_SIZE + payload_length) {
+        return 1;
+    }
+
+    *index = stnc_stnp_read_u32(buffer + STNC_STNP_HEADER_SIZE);
+    *block = buffer + STNC_STNP_HEADER_SIZE + STNC_STNP_BLOCK_INDEX_SIZE;
+    *block_length = payload_length - STNC_STNP_BLOCK_INDEX_SIZE;
+    return 0;
+}
+
 int stnc_stnp_encode_get_peers(
     uint8_t *buffer,
     size_t capacity,
