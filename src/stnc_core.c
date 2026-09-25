@@ -31,6 +31,7 @@
 #define STNC_SUFFIX_STAGE_ABORT_REQUEST_ID UINT64_C(14)
 #define STNC_MINING_CONTEXT_REQUEST_ID UINT64_C(15)
 #define STNC_MINING_TEMPLATE_REQUEST_ID UINT64_C(16)
+#define STNC_CHECK_WORK_BASE_REQUEST_ID UINT64_C(17)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
@@ -1441,6 +1442,24 @@ int stnc_core_mining_context(stnc_mining_context *context)
        stnc_stnc_decode_header(header,sizeof(header),&response)!=0||
        response.method!=STNC_STNC_METHOD_MINING_CONTEXT||
        response.request_id!=STNC_MINING_CONTEXT_REQUEST_ID||
+       response.code!=STNC_STNC_OK||response.length!=sizeof(payload)||
+       stnc_network_receive(&chain_connection,payload,sizeof(payload))!=0)return 1;
+    return stnc_stnc_decode_mining_context(payload,sizeof(payload),context);
+}
+
+int stnc_core_check_work_base(const uint8_t tip_id[32],stnc_mining_context *context)
+{
+    uint8_t request[STNC_STNC_HEADER_SIZE+32u],header[STNC_STNC_HEADER_SIZE];
+    uint8_t payload[STNC_STNC_MINING_CONTEXT_SIZE];stnc_stnc_message response;size_t written;
+    if(tip_id==NULL||context==NULL||core_state==STNC_CORE_STATE_UNINITIALIZED||
+       core_state==STNC_CORE_STATE_STOPPED||!stnc_network_is_connected(&chain_connection))return 1;
+    if(stnc_stnc_encode_check_work_base(tip_id,STNC_CHECK_WORK_BASE_REQUEST_ID,
+            request,sizeof(request),&written)!=0||
+       stnc_network_send(&chain_connection,request,written)!=0||
+       stnc_network_receive(&chain_connection,header,sizeof(header))!=0||
+       stnc_stnc_decode_header(header,sizeof(header),&response)!=0||
+       response.method!=STNC_STNC_METHOD_CHECK_WORK_BASE||
+       response.request_id!=STNC_CHECK_WORK_BASE_REQUEST_ID||
        response.code!=STNC_STNC_OK||response.length!=sizeof(payload)||
        stnc_network_receive(&chain_connection,payload,sizeof(payload))!=0)return 1;
     return stnc_stnc_decode_mining_context(payload,sizeof(payload),context);
