@@ -8,10 +8,12 @@ static unsigned int sha_calls;
 static int sha_fail;
 static unsigned int clear_calls;
 static size_t clear_length;
+static size_t clear_lengths[8];
 
 void stnc_platform_secure_clear(void *buffer,size_t length)
 {
     volatile uint8_t *p=(volatile uint8_t *)buffer;
+    if(clear_calls<sizeof(clear_lengths)/sizeof(clear_lengths[0]))clear_lengths[clear_calls]=length;
     clear_calls++;clear_length=length;
     while(length>0u){*p++=0u;length--;}
 }
@@ -53,9 +55,10 @@ int main(void)
        clear_calls!=1u||clear_length!=STNC_MINING_HASH_INPUT_SIZE)return 1;
 
     memset(block,0,sizeof(block));memset(block+120u,0xff,32u);memcpy(original,block,sizeof(block));
-    sha_calls=0u;
+    sha_calls=0u;clear_calls=0u;memset(clear_lengths,0,sizeof(clear_lengths));
     if(stnc_mining_search(block,UINT64_C(0x0102030405060708),1u,&nonce,digest)!=STNC_MINING_FOUND||
-       nonce!=UINT64_C(0x0102030405060708)||sha_calls!=1u)return 1;
+       nonce!=UINT64_C(0x0102030405060708)||sha_calls!=1u||clear_calls!=3u||
+       clear_lengths[0]!=STNC_MINING_HASH_INPUT_SIZE||clear_lengths[1]!=32u||clear_lengths[2]!=32u)return 1;
     if(memcmp(block,original,STNC_STNC_MINING_NONCE_OFFSET)!=0||
        memcmp(block+STNC_STNC_MINING_NONCE_OFFSET+STNC_STNC_MINING_NONCE_SIZE,
               original+STNC_STNC_MINING_NONCE_OFFSET+STNC_STNC_MINING_NONCE_SIZE,
@@ -63,8 +66,10 @@ int main(void)
     if(block[152]!=0x01u||block[153]!=0x02u||block[154]!=0x03u||block[155]!=0x04u||
        block[156]!=0x05u||block[157]!=0x06u||block[158]!=0x07u||block[159]!=0x08u)return 1;
 
-    memset(block+120u,0u,32u);sha_calls=0u;
-    if(stnc_mining_search(block,UINT64_MAX,2u,&nonce,digest)!=STNC_MINING_EXHAUSTED||sha_calls!=1u)return 1;
+    memset(block+120u,0u,32u);sha_calls=0u;clear_calls=0u;memset(clear_lengths,0,sizeof(clear_lengths));
+    if(stnc_mining_search(block,UINT64_MAX,2u,&nonce,digest)!=STNC_MINING_EXHAUSTED||sha_calls!=1u||
+       clear_calls!=3u||clear_lengths[0]!=STNC_MINING_HASH_INPUT_SIZE||
+       clear_lengths[1]!=32u||clear_lengths[2]!=32u)return 1;
 
     memset(block,0,sizeof(block));memset(block+120u,0u,32u);memcpy(original,block,sizeof(block));sha_calls=0u;
     if(stnc_mining_search(block,UINT64_C(9),3u,&nonce,digest)!=STNC_MINING_EXHAUSTED||
@@ -75,9 +80,10 @@ int main(void)
               original+STNC_STNC_MINING_NONCE_OFFSET+STNC_STNC_MINING_NONCE_SIZE,
               sizeof(block)-STNC_STNC_MINING_NONCE_OFFSET-STNC_STNC_MINING_NONCE_SIZE)!=0)return 1;
 
-    memset(block+120u,0xff,32u);sha_fail=1;clear_calls=0u;clear_length=0u;
+    memset(block+120u,0xff,32u);sha_fail=1;clear_calls=0u;clear_length=0u;memset(clear_lengths,0,sizeof(clear_lengths));
     if(stnc_mining_search(block,0u,1u,&nonce,digest)!=STNC_MINING_ERROR||
-       clear_calls!=1u||clear_length!=STNC_MINING_HASH_INPUT_SIZE)return 1;
+       clear_calls!=3u||clear_lengths[0]!=STNC_MINING_HASH_INPUT_SIZE||
+       clear_lengths[1]!=32u||clear_lengths[2]!=32u)return 1;
     sha_fail=0;
 
     sha_calls=0u;
