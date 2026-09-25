@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "stnc_background_mining.h"
 #include "stnc_config.h"
 #include "stnc_directory.h"
 #include "stnc_http.h"
@@ -1299,6 +1300,13 @@ int stnc_core_init(void)
         stnc_log_error("Automatic Chain P2P peer selection failed.");
     }
 
+    if (stnc_background_mining_init() != 0) {
+        stnc_log_error("Background mining service initialization failed.");
+        stnc_core_shutdown();
+        core_state = STNC_CORE_STATE_UNINITIALIZED;
+        return 1;
+    }
+
     return 0;
 }
 
@@ -1677,6 +1685,7 @@ int stnc_core_run(void)
 
         if (stnc_network_is_connected(&chain_connection)) {
             refresh_elapsed += STNC_RUNTIME_WAIT_MS;
+            stnc_background_mining_tick();
             reconnect_elapsed = 0;
 
             if (root_peer_capabilities == 0) {
@@ -1758,6 +1767,7 @@ void stnc_core_shutdown(void)
     }
 
     stnc_log_info("STNC Core shutting down.");
+    stnc_background_mining_shutdown();
 
     if (stnc_network_is_connected(&p2p_connection)) {
         stnc_network_disconnect(&p2p_connection);
