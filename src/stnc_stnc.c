@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "stnc_stnc.h"
 
@@ -298,6 +299,37 @@ int stnc_stnc_encode_submit_block_evidence(
     message.payload=block;
     message.length=block_length;
     return stnc_stnc_encode(&message,buffer,capacity,written);
+}
+
+int stnc_stnc_encode_submit_history_evidence(
+    const uint8_t *const *blocks,const size_t *block_lengths,size_t block_count,
+    uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written)
+{
+    stnc_stnc_message message;
+    uint8_t *payload;
+    size_t payload_length=4u,at=4u,i;
+    int rc;
+    if(written!=NULL)*written=0;
+    if(blocks==NULL||block_lengths==NULL||block_count==0u||block_count>UINT32_MAX)return 1;
+    for(i=0u;i<block_count;i++){
+        if(blocks[i]==NULL||block_lengths[i]<STNC_STNC_BLOCK_HEADER_SIZE||
+           block_lengths[i]>STNC_STNC_BLOCK_MAX_SIZE||
+           payload_length>UINT32_MAX-4u||block_lengths[i]>UINT32_MAX-payload_length-4u)return 1;
+        payload_length+=4u+block_lengths[i];
+    }
+    if(capacity<STNC_STNC_HEADER_SIZE||payload_length>capacity-STNC_STNC_HEADER_SIZE)return 1;
+    payload=(uint8_t *)malloc(payload_length);
+    if(payload==NULL)return 1;
+    stnc_stnc_write_u32(payload,(uint32_t)block_count);
+    for(i=0u;i<block_count;i++){
+        stnc_stnc_write_u32(payload+at,(uint32_t)block_lengths[i]);at+=4u;
+        memcpy(payload+at,blocks[i],block_lengths[i]);at+=block_lengths[i];
+    }
+    memset(&message,0,sizeof(message));message.kind=STNC_STNC_REQUEST;
+    message.method=STNC_STNC_METHOD_SUBMIT_HISTORY_EVIDENCE;message.code=STNC_STNC_OK;
+    message.request_id=request_id;message.payload=payload;message.length=payload_length;
+    rc=stnc_stnc_encode(&message,buffer,capacity,written);
+    free(payload);return rc;
 }
 
 int stnc_stnc_decode_block_accepted(
