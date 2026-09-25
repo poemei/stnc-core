@@ -82,10 +82,12 @@ int main(void)
               original+STNC_STNC_MINING_NONCE_OFFSET+STNC_STNC_MINING_NONCE_SIZE,
               sizeof(block)-STNC_STNC_MINING_NONCE_OFFSET-STNC_STNC_MINING_NONCE_SIZE)!=0)return 1;
 
-    memset(block+120u,0xff,32u);sha_fail=1;clear_calls=0u;clear_length=0u;memset(clear_lengths,0,sizeof(clear_lengths));
+    memset(block+120u,0xff,32u);sha_fail=1;nonce=UINT64_MAX;memset(digest,0xa5,sizeof(digest));
+    clear_calls=0u;clear_length=0u;memset(clear_lengths,0,sizeof(clear_lengths));
     if(stnc_mining_search(block,0u,1u,&nonce,digest)!=STNC_MINING_ERROR||
        clear_calls!=3u||clear_lengths[0]!=STNC_MINING_HASH_INPUT_SIZE||
-       clear_lengths[1]!=32u||clear_lengths[2]!=32u)return 1;
+       clear_lengths[1]!=32u||clear_lengths[2]!=32u||nonce!=0u||
+       digest[0]!=0u||digest[31]!=0u)return 1;
     sha_fail=0;
 
     sha_calls=0u;
