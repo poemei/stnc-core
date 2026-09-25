@@ -148,6 +148,19 @@ static int stnc_command_contract(int argc, char **argv)
 }
 
 
+static int stnc_command_mining(int argc,char **argv)
+{
+    stnc_mining_context context;size_t i;
+    if(argc!=3||strcmp(argv[2],"status")!=0){stnc_command_print_usage();return 1;}
+    if(stnc_core_mining_context(&context)!=0){fprintf(stderr,"Mining context unavailable.\n");return 1;}
+    printf("Mining status\n  Height: %" PRIu64 "\n  Template: %s\n  Tip: ",
+        context.height,context.template_available?"available":"unavailable");
+    for(i=0u;i<sizeof(context.tip_id);i++)printf("%02x",(unsigned int)context.tip_id[i]);
+    printf("\n  Target: ");
+    for(i=0u;i<sizeof(context.target);i++)printf("%02x",(unsigned int)context.target[i]);
+    printf("\n");return 0;
+}
+
 static int stnc_command_wallet(int argc,char **argv)
 {
     stnc_wallet_key key;stnc_wallet_status status;char address[STNC_WALLET_ADDRESS_SIZE+1u];uint64_t units;
@@ -251,6 +264,7 @@ int stnc_command_run(int argc, char **argv)
     if (strcmp(argv[1], "balance") == 0) return stnc_command_balance(argc, argv);
     if (strcmp(argv[1], "wallet") == 0) return stnc_command_wallet(argc, argv);
     if (strcmp(argv[1], "contract") == 0) return stnc_command_contract(argc, argv);
+    if (strcmp(argv[1], "mining") == 0) return stnc_command_mining(argc, argv);
     if (strcmp(argv[1], "transfer") == 0) return stnc_command_transfer(argc, argv);
 
     if (strcmp(argv[1], "help") == 0 ||
