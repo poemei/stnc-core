@@ -5,6 +5,7 @@
 
 #include "stnc_config.h"
 #include "stnc_core.h"
+#include "stnc_log.h"
 #include "stnc_mining.h"
 #include "stnc_platform.h"
 #include "stnc_wallet.h"
@@ -102,10 +103,13 @@ void stnc_background_mining_tick(void)
         return;
     }
 
+    if(!status.running||status.active_backend!=STNC_MINING_BACKEND_CPU)
+        stnc_log_info("Background mining active: backend=cpu cpu_limit=2%.");
     stnc_mining_service_set_running(1,STNC_MINING_BACKEND_CPU);
     result=stnc_mining_search_timed(block,first_nonce,stnc_mining_service_cpu_work_ms(),
         &attempts,&found_nonce,digest);
     stnc_mining_service_record_pass(attempts,result==STNC_MINING_FOUND);
+    if(result==STNC_MINING_FOUND)stnc_log_info("Background mining found candidate work.");
 
     if(result==STNC_MINING_EXHAUSTED){
         if(attempts>UINT64_MAX-first_nonce)have_work_id=0;
