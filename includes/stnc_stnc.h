@@ -23,6 +23,17 @@
 
 #define STNC_STNC_METHOD_INFO 1u
 #define STNC_STNC_METHOD_DERIVE_ADDRESS 9u
+#define STNC_STNC_METHOD_BALANCE 10u
+#define STNC_STNC_METHOD_CONTRACT_STATE 11u
+
+#define STNC_STNC_BALANCE_SIZE 8u
+#define STNC_STNC_CONTRACT_STATE_SIZE 26u
+#define STNC_STNC_CONTRACT_STATE_DRAFT 1u
+#define STNC_STNC_CONTRACT_STATE_CLOSED 9u
+#define STNC_STNC_CONTRACT_TYPE_GENERIC 1u
+#define STNC_STNC_CONTRACT_TYPE_SERVICE_AGREEMENT 6u
+#define STNC_STNC_CONTRACT_MAX_PARTICIPANTS 32u
+#define STNC_STNC_CONTRACT_MAX_TERMS 65536u
 
 #define STNC_STNC_ADDRESS_IDENTITY 1u
 #define STNC_STNC_ADDRESS_CONTRACT 2u
@@ -36,6 +47,15 @@ typedef struct stnc_stnc_message {
     const uint8_t *payload;
     size_t length;
 } stnc_stnc_message;
+
+typedef struct stnc_contract_state {
+    uint16_t state;
+    uint16_t type;
+    uint64_t sequence;
+    uint64_t created_at;
+    uint16_t participant_count;
+    uint32_t terms_length;
+} stnc_contract_state;
 
 typedef struct stnc_chain_info {
     uint8_t network_id[32];
@@ -65,6 +85,15 @@ int stnc_stnc_encode_derive_address(
     size_t *written
 );
 
+int stnc_stnc_encode_address_query(
+    uint16_t method,
+    const char *address,
+    uint64_t request_id,
+    uint8_t *buffer,
+    size_t capacity,
+    size_t *written
+);
+
 int stnc_stnc_decode_header(
     const uint8_t *buffer,
     size_t length,
@@ -83,6 +112,18 @@ int stnc_stnc_decode_address(
     size_t length,
     char *address,
     size_t capacity
+);
+
+int stnc_stnc_decode_balance(
+    const uint8_t *payload,
+    size_t length,
+    uint64_t *units
+);
+
+int stnc_stnc_decode_contract_state(
+    const uint8_t *payload,
+    size_t length,
+    stnc_contract_state *state
 );
 
 void stnc_stnc_write_u16(
