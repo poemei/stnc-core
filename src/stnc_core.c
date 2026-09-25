@@ -33,7 +33,10 @@
 #define STNC_DIRECTORY_HOST "stn-chain.org"
 #define STNC_DIRECTORY_PATH "/peers?format=json"
 #define STNC_HISTORY_EVIDENCE_MAX_BLOCKS 4096u
-#define STNC_HISTORY_EVIDENCE_MAX_BYTES (64u * 1024u * 1024u)
+/* Must never exceed Chain STNC v2 STN_RPC_MAX_PAYLOAD:
+ * STN_RPC_MINING_SUBMISSION_PREFIX (137) + STN_BLOCK_MAX_SIZE. */
+#define STNC_STNC_MAX_PAYLOAD (137u + STNC_STNC_BLOCK_MAX_SIZE)
+#define STNC_HISTORY_EVIDENCE_MAX_BYTES STNC_STNC_MAX_PAYLOAD
 
 static stnc_core_state core_state = STNC_CORE_STATE_UNINITIALIZED;
 static stnc_network_connection chain_connection;
