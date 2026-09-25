@@ -150,15 +150,31 @@ static int stnc_command_contract(int argc, char **argv)
 
 static int stnc_command_mining(int argc,char **argv)
 {
-    stnc_mining_context context;size_t i;
-    if(argc!=3||strcmp(argv[2],"status")!=0){stnc_command_print_usage();return 1;}
-    if(stnc_core_mining_context(&context)!=0){fprintf(stderr,"Mining context unavailable.\n");return 1;}
-    printf("Mining status\n  Height: %" PRIu64 "\n  Template: %s\n  Tip: ",
-        context.height,context.template_available?"available":"unavailable");
-    for(i=0u;i<sizeof(context.tip_id);i++)printf("%02x",(unsigned int)context.tip_id[i]);
-    printf("\n  Target: ");
-    for(i=0u;i<sizeof(context.target);i++)printf("%02x",(unsigned int)context.target[i]);
-    printf("\n");return 0;
+    size_t i;
+    if(argc!=3){stnc_command_print_usage();return 1;}
+    if(strcmp(argv[2],"status")==0){
+        stnc_mining_context context;
+        if(stnc_core_mining_context(&context)!=0){fprintf(stderr,"Mining context unavailable.\n");return 1;}
+        printf("Mining status\n  Height: %" PRIu64 "\n  Template: %s\n  Tip: ",
+            context.height,context.template_available?"available":"unavailable");
+        for(i=0u;i<sizeof(context.tip_id);i++)printf("%02x",(unsigned int)context.tip_id[i]);
+        printf("\n  Target: ");
+        for(i=0u;i<sizeof(context.target);i++)printf("%02x",(unsigned int)context.target[i]);
+        printf("\n");return 0;
+    }
+    if(strcmp(argv[2],"template")==0){
+        uint8_t *payload=NULL;size_t payload_length=0u;stnc_mining_template work;
+        if(stnc_core_mining_template(&payload,&payload_length,&work)!=0){
+            fprintf(stderr,"Mining template unavailable.\n");return 1;
+        }
+        printf("Mining template\n  Parent: ");
+        for(i=0u;i<sizeof(work.parent_id);i++)printf("%02x",(unsigned int)work.parent_id[i]);
+        printf("\n  Work ID: ");
+        for(i=0u;i<sizeof(work.work_id);i++)printf("%02x",(unsigned int)work.work_id[i]);
+        printf("\n  Block bytes: %zu\n  Envelope bytes: %zu\n",work.block_length,payload_length);
+        stnc_core_mining_template_release(payload);return 0;
+    }
+    stnc_command_print_usage();return 1;
 }
 
 static int stnc_command_wallet(int argc,char **argv)
