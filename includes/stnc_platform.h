@@ -52,6 +52,7 @@ int stnc_platform_random(unsigned char *buffer,size_t length);
 int stnc_platform_sha256(const unsigned char *buffer,size_t length,unsigned char digest[32]);
 void stnc_platform_secure_clear(void *buffer,size_t length);
 int stnc_platform_protect_private_file(const char *path);
+char stnc_platform_path_separator(void);
 
 uint64_t stnc_platform_monotonic_ms(void);
 
