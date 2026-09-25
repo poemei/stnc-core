@@ -43,9 +43,13 @@ int stnc_wallet_store_load(stnc_wallet_key *key)
 {
     char path[STNC_WALLET_PATH_MAX];FILE *f;uint8_t file[STNC_WALLET_FILE_SIZE],derived[STNC_WALLET_PUBLIC_KEY_SIZE];stnc_wallet_key loaded;int extra;
     if(key==NULL||wallet_path(path)!=0)return 1;
+    memset(key,0,sizeof(*key));
     memset(&loaded,0,sizeof(loaded));memset(file,0,sizeof(file));memset(derived,0,sizeof(derived));
     f=fopen(path,"rb");if(f==NULL)return 1;
-    if(fread(file,1,sizeof(file),f)!=sizeof(file)){fclose(f);return 1;}extra=fgetc(f);fclose(f);
+    if(fread(file,1,sizeof(file),f)!=sizeof(file)){
+        fclose(f);stnc_platform_secure_clear(file,sizeof(file));return 1;
+    }
+    extra=fgetc(f);fclose(f);
     if(extra!=EOF||memcmp(file,STNC_WALLET_FILE_MAGIC,4)!=0||file[4]!=STNC_WALLET_FILE_VERSION){stnc_platform_secure_clear(file,sizeof(file));return 1;}
     memcpy(loaded.private_key,file+5,32);memcpy(loaded.public_key,file+37,32);
     if(stnc_ed25519_publickey(loaded.private_key,derived)!=0||memcmp(derived,loaded.public_key,sizeof(derived))!=0){
