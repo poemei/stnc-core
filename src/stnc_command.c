@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "stnc_command.h"
+#include "stnc_background_mining.h"
 #include "stnc_core.h"
 #include "stnc_mining.h"
 #include "stnc_contract_status.h"
@@ -31,6 +32,7 @@ static void stnc_command_print_usage(void)
         "  stnc-core transfer <stnw0_...> <units>\n"
         "  stnc-core contract state <stnc0_...>\n"
         "  stnc-core mining status\n"
+        "  stnc-core mining service\n"
         "  stnc-core mining template\n"
         "  stnc-core mining check\n"
         "  stnc-core mining scan <attempts>\n"
@@ -279,6 +281,17 @@ static int stnc_command_mining(int argc,char **argv)
         default:
             stnc_core_mining_template_release(payload);fprintf(stderr,"Mining worker failed.\n");return 1;
         }}
+    }
+    if(strcmp(argv[2],"service")==0){
+        stnc_mining_service_status service;
+        stnc_background_mining_status(&service);
+        printf("Background mining\n  Enabled: %s\n  Running: %s\n  Configured backend: %s\n  Active backend: %s\n"
+               "  CPU limit: %u%%\n  Passes: %" PRIu64 "\n  Attempts: %" PRIu64 "\n  Solutions: %" PRIu64 "\n",
+            service.enabled?"yes":"no",service.running?"yes":"no",
+            stnc_mining_backend_name(service.configured_backend),
+            service.running?stnc_mining_backend_name(service.active_backend):"none",
+            service.cpu_limit_percent,service.passes,service.attempts,service.solutions);
+        return 0;
     }
     if(strcmp(argv[2],"status")==0){
         stnc_mining_context context;
