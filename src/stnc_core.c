@@ -1499,3 +1499,15 @@ const stnc_core_peer_status *stnc_core_get_peer_status(void)
 {
     return &peer_status;
 }
+
+void stnc_core_get_runtime_status(stnc_core_runtime_status *status)
+{
+    if(status==NULL)return;
+    memset(status,0,sizeof(*status));
+    status->chain_connected=stnc_network_is_connected(&chain_connection);
+    status->chain_state_available=chain_state.available;
+    status->p2p_connected=stnc_network_is_connected(&p2p_connection);
+    status->candidate_count=peer_candidates.count;
+    status->qualified_count=qualified_peers.count;
+    status->root_peer_capabilities=root_peer_capabilities;
+}
