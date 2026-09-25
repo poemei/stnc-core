@@ -136,6 +136,19 @@ if errorlevel 1 (
     exit /b 1
 )
 
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_wallet.c src\stnc_wallet.c platforms\windows\platform_windows.c src\crypto\ed25519_donna\ed25519_provider.c /Fe:build\test-stnc-wallet.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
+if errorlevel 1 (
+    echo.
+    echo WALLET TEST BUILD FAILED
+    exit /b 1
+)
+build\test-stnc-wallet.exe
+if errorlevel 1 (
+    echo.
+    echo WALLET TEST FAILED
+    exit /b 1
+)
+
 echo.
 echo BUILD SUCCESSFUL
 echo build\stnc-core.exe
