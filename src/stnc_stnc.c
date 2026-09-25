@@ -282,6 +282,36 @@ int stnc_stnc_encode_submit_transaction(
     return stnc_stnc_encode(&message,buffer,capacity,written);
 }
 
+int stnc_stnc_encode_submit_block_evidence(
+    const uint8_t *block,size_t block_length,uint64_t request_id,
+    uint8_t *buffer,size_t capacity,size_t *written)
+{
+    stnc_stnc_message message;
+    if(written!=NULL)*written=0;
+    if(block==NULL||block_length<STNC_STNC_BLOCK_HEADER_SIZE||
+       block_length>STNC_STNC_BLOCK_MAX_SIZE)return 1;
+    memset(&message,0,sizeof(message));
+    message.kind=STNC_STNC_REQUEST;
+    message.method=STNC_STNC_METHOD_SUBMIT_BLOCK_EVIDENCE;
+    message.code=STNC_STNC_OK;
+    message.request_id=request_id;
+    message.payload=block;
+    message.length=block_length;
+    return stnc_stnc_encode(&message,buffer,capacity,written);
+}
+
+int stnc_stnc_decode_block_accepted(
+    const uint8_t *payload,size_t length,uint8_t tip_id[32],
+    uint64_t *height,uint8_t cumulative_work[40])
+{
+    if(payload==NULL||tip_id==NULL||height==NULL||cumulative_work==NULL||
+       length!=STNC_STNC_BLOCK_ACCEPTED_SIZE)return 1;
+    memcpy(tip_id,payload,32u);
+    *height=stnc_read_u64(payload+32u);
+    memcpy(cumulative_work,payload+40u,40u);
+    return 0;
+}
+
 int stnc_stnc_decode_pending(const uint8_t *payload,size_t length,stnc_pending_state *state)
 {
     stnc_pending_state decoded;
