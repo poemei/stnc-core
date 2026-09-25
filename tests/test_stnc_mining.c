@@ -85,10 +85,19 @@ int main(void)
 
     memset(block+120u,0u,32u);nonce=UINT64_MAX;memset(digest,0xa5,sizeof(digest));
     sha_calls=0u;clear_calls=0u;clear_length=0u;memset(clear_lengths,0,sizeof(clear_lengths));
-    if(stnc_mining_search(block,UINT64_MAX,2u,&nonce,digest)!=STNC_MINING_EXHAUSTED||sha_calls!=1u||
-       nonce!=0u||digest[0]!=0u||digest[31]!=0u||
-       clear_calls!=3u||clear_lengths[0]!=STNC_MINING_HASH_INPUT_SIZE||
-       clear_lengths[1]!=32u||clear_lengths[2]!=32u||clear_length!=32u)return TEST_FAIL();
+    if(stnc_mining_search(block,UINT64_MAX,2u,&nonce,digest)!=STNC_MINING_EXHAUSTED)return TEST_FAIL();
+    if(sha_calls!=1u||nonce!=0u||digest[0]!=0u||digest[31]!=0u)return TEST_FAIL();
+    if(clear_calls!=3u){
+        fprintf(stderr,"overflow cleanup clear_calls=%u expected=3\n",clear_calls);return TEST_FAIL();
+    }
+    if(clear_lengths[0]!=STNC_MINING_HASH_INPUT_SIZE||clear_lengths[1]!=32u||
+       clear_lengths[2]!=32u||clear_length!=32u){
+        fprintf(stderr,"overflow cleanup lengths=%llu,%llu,%llu last=%llu expected=%u,32,32\n",
+            (unsigned long long)clear_lengths[0],(unsigned long long)clear_lengths[1],
+            (unsigned long long)clear_lengths[2],(unsigned long long)clear_length,
+            (unsigned int)STNC_MINING_HASH_INPUT_SIZE);
+        return TEST_FAIL();
+    }
 
     memset(block,0,sizeof(block));memset(block+120u,0u,32u);memcpy(original,block,sizeof(block));
     nonce=UINT64_MAX;memset(digest,0xa5,sizeof(digest));sha_calls=0u;
