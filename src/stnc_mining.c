@@ -23,7 +23,8 @@ stnc_mining_result stnc_mining_search(uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE]
     if(block==NULL||found_nonce==NULL||digest==NULL||attempts==0u)return STNC_MINING_ERROR;
     memcpy(target,block+120u,32u);
     for(i=0u;i<attempts;i++){
-        nonce=first_nonce+i;if(nonce<first_nonce)return STNC_MINING_EXHAUSTED;
+        if(i>UINT64_MAX-first_nonce)return STNC_MINING_EXHAUSTED;
+        nonce=first_nonce+i;
         put64(block+STNC_STNC_MINING_NONCE_OFFSET,nonce);
         if(stnc_mining_hash(block,hash)!=0)return STNC_MINING_ERROR;
         if(stnc_mining_hash_meets_target(hash,target)){*found_nonce=nonce;memcpy(digest,hash,32u);return STNC_MINING_FOUND;}
