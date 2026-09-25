@@ -5,6 +5,7 @@
 #include "stnc_command.h"
 #include "stnc_background_mining.h"
 #include "stnc_core.h"
+#include "stnc_config.h"
 #include "stnc_mining.h"
 #include "stnc_contract_status.h"
 #include "stnc_stnc.h"
@@ -33,6 +34,9 @@ static void stnc_command_print_usage(void)
         "  stnc-core contract state <stnc0_...>\n"
         "  stnc-core mining status\n"
         "  stnc-core mining service\n"
+        "  stnc-core mining enable|disable\n"
+        "  stnc-core mining backend automatic|cpu|gpu|usb-asic\n"
+        "  stnc-core mining cpu-limit 1|2\n"
         "  stnc-core mining template\n"
         "  stnc-core mining check\n"
         "  stnc-core mining scan <attempts>\n"
@@ -281,6 +285,24 @@ static int stnc_command_mining(int argc,char **argv)
         default:
             stnc_core_mining_template_release(payload);fprintf(stderr,"Mining worker failed.\n");return 1;
         }}
+    }
+    if(strcmp(argv[2],"enable")==0||strcmp(argv[2],"disable")==0){
+        int enabled=strcmp(argv[2],"enable")==0;
+        if(argc!=3||stnc_config_set_mining_enabled(enabled)!=0){fprintf(stderr,"Mining configuration update failed.\n");return 1;}
+        printf("Background mining %s.\n",enabled?"enabled":"disabled");return 0;
+    }
+    if(strcmp(argv[2],"backend")==0){
+        if(argc!=4||stnc_config_set_mining_backend(argv[3])!=0){fprintf(stderr,"Invalid mining backend or configuration update failed.\n");return 1;}
+        printf("Background mining backend: %s\n",argv[3]);return 0;
+    }
+    if(strcmp(argv[2],"cpu-limit")==0){
+        unsigned int limit;
+        if(argc!=4||argv[3][1]!='\0'||(argv[3][0]!='1'&&argv[3][0]!='2')){
+            fprintf(stderr,"CPU mining limit must be 1 or 2 percent.\n");return 1;
+        }
+        limit=(unsigned int)(argv[3][0]-'0');
+        if(stnc_config_set_mining_cpu_limit(limit)!=0){fprintf(stderr,"Mining CPU limit update failed.\n");return 1;}
+        printf("Background mining CPU limit: %u%%\n",limit);return 0;
     }
     if(strcmp(argv[2],"service")==0){
         stnc_mining_service_status service;
