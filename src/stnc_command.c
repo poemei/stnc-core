@@ -4,6 +4,7 @@
 
 #include "stnc_command.h"
 #include "stnc_core.h"
+#include "stnc_contract_status.h"
 #include "stnc_stnc.h"
 #include "stnc_wallet.h"
 #include "stnc_wallet_store.h"
@@ -134,15 +135,15 @@ static int stnc_command_balance(int argc, char **argv)
 
 static int stnc_command_contract(int argc, char **argv)
 {
-    stnc_contract_state state;
-    if (argc != 4 || strcmp(argv[2], "state") != 0) { stnc_command_print_usage(); return 1; }
-    if (stnc_core_contract_state(argv[3], &state) != 0) {
-        fprintf(stderr, "Contract state query failed.\n"); return 1;
-    }
-    printf("Contract state\n  State: %u\n  Type: %u\n  Sequence: %" PRIu64
+    stnc_contract_status status;
+    if(argc!=4||strcmp(argv[2],"state")!=0){stnc_command_print_usage();return 1;}
+    if(stnc_contract_status_read(argv[3],&status)!=0){fprintf(stderr,"Invalid contract address.\n");return 1;}
+    if(!status.available){fprintf(stderr,"Contract state unavailable.\n");return 1;}
+    printf("Contract state\n  Address: %s\n  State: %s (%u)\n  Type: %s (%u)\n  Sequence: %" PRIu64
            "\n  Created: %" PRIu64 "\n  Participants: %u\n  Terms bytes: %" PRIu32 "\n",
-        (unsigned int)state.state,(unsigned int)state.type,state.sequence,state.created_at,
-        (unsigned int)state.participant_count,state.terms_length);
+        status.address,stnc_contract_state_name(status.state.state),(unsigned int)status.state.state,
+        stnc_contract_type_name(status.state.type),(unsigned int)status.state.type,status.state.sequence,
+        status.state.created_at,(unsigned int)status.state.participant_count,status.state.terms_length);
     return 0;
 }
 
