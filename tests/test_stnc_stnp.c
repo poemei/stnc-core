@@ -17,14 +17,29 @@ static void write_u32(unsigned char *buffer, unsigned long value)
     buffer[3] = (unsigned char)(value & 0xffu);
 }
 
+static void write_u64(unsigned char *buffer, unsigned long long value)
+{
+    buffer[0] = (unsigned char)((value >> 56) & 0xffu);
+    buffer[1] = (unsigned char)((value >> 48) & 0xffu);
+    buffer[2] = (unsigned char)((value >> 40) & 0xffu);
+    buffer[3] = (unsigned char)((value >> 32) & 0xffu);
+    buffer[4] = (unsigned char)((value >> 24) & 0xffu);
+    buffer[5] = (unsigned char)((value >> 16) & 0xffu);
+    buffer[6] = (unsigned char)((value >> 8) & 0xffu);
+    buffer[7] = (unsigned char)(value & 0xffu);
+}
+
 int main(void)
 {
     unsigned char network_id[32];
     unsigned char genesis_id[32];
     unsigned char hello_frame[STNC_STNP_HEADER_SIZE + STNC_STNP_HELLO_SIZE];
+    unsigned char state_request[STNC_STNP_HEADER_SIZE];
+    unsigned char state_frame[STNC_STNP_HEADER_SIZE + STNC_STNP_STATE_SIZE];
     unsigned char get_peers[STNC_STNP_HEADER_SIZE];
     unsigned char peers_frame[STNC_STNP_HEADER_SIZE + 14u];
     stnc_stnp_hello hello;
+    stnc_stnp_state state;
     stnc_stnp_peers peers;
     size_t written;
     size_t payload_length;
@@ -55,6 +70,47 @@ int main(void)
     if (stnc_stnp_decode_hello(hello_frame, sizeof(hello_frame), &hello) == 0) {
         return 1;
     }
+
+    if (stnc_stnp_encode_state(
+            state_request,
+            sizeof(state_request),
+            &written
+        ) != 0 ||
+        written != sizeof(state_request) ||
+        memcmp(state_request, "STNP", 4) != 0 ||
+        state_request[6] != 0u ||
+        state_request[7] != STNC_STNP_STATE) {
+        return 1;
+    }
+
+    memset(state_frame, 0, sizeof(state_frame));
+    memcpy(state_frame, "STNP", 4);
+    write_u16(state_frame + 4, STNC_STNP_VERSION);
+    write_u16(state_frame + 6, STNC_STNP_STATE);
+    write_u32(state_frame + 8, STNC_STNP_STATE_SIZE);
+    write_u64(state_frame + 12, 251u);
+
+    for (index = 0; index < 32u; ++index) {
+        state_frame[20u + index] = (unsigned char)(0x80u + index);
+    }
+    for (index = 0; index < 40u; ++index) {
+        state_frame[52u + index] = (unsigned char)(0x40u + index);
+    }
+    write_u32(state_frame + 92, 252u);
+
+    if (stnc_stnp_decode_state(state_frame, sizeof(state_frame), &state) != 0 ||
+        state.height != 251u ||
+        state.block_count != 252u ||
+        memcmp(state.tip_id, state_frame + 20, 32) != 0 ||
+        memcmp(state.cumulative_work, state_frame + 52, 40) != 0) {
+        return 1;
+    }
+
+    write_u32(state_frame + 92, 251u);
+    if (stnc_stnp_decode_state(state_frame, sizeof(state_frame), &state) == 0) {
+        return 1;
+    }
+    write_u32(state_frame + 92, 252u);
 
     if (stnc_stnp_encode_get_peers(
             get_peers,
