@@ -246,6 +246,13 @@ static int stnc_command_mining(int argc,char **argv)
             for(j=0u;j<32u;j++)printf("%02x",(unsigned int)accepted_id[j]);printf("\n");
             stnc_core_mining_template_release(payload);return 0;
         case STNC_MINING_EXHAUSTED:
+            {uint64_t expected_last=first_nonce+attempts-1u,encoded_last=0u;
+            for(j=0u;j<STNC_STNC_MINING_NONCE_SIZE;j++)
+                encoded_last=(encoded_last<<8)|block[STNC_STNC_MINING_NONCE_OFFSET+j];
+            if(encoded_last!=expected_last){
+                stnc_core_mining_template_release(payload);
+                fprintf(stderr,"Mining worker did not exhaust the requested nonce range.\n");return 1;
+            }}
             if(nonce!=0u||memcmp(digest,(const uint8_t[32]){0},32u)!=0){
                 stnc_core_mining_template_release(payload);
                 fprintf(stderr,"Mining worker returned invalid exhausted-state outputs.\n");return 1;
