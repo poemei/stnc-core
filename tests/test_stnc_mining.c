@@ -40,6 +40,9 @@ int main(void)
     if(block[152]!=0x01u||block[153]!=0x02u||block[154]!=0x03u||block[155]!=0x04u||
        block[156]!=0x05u||block[157]!=0x06u||block[158]!=0x07u||block[159]!=0x08u)return 1;
 
+    memset(block+120u,0u,32u);
+    if(stnc_mining_search(block,UINT64_MAX,2u,&nonce,digest)!=STNC_MINING_EXHAUSTED)return 1;
+
     if(stnc_mining_search(block,0u,0u,&nonce,digest)!=STNC_MINING_ERROR)return 1;
     if(stnc_mining_search(NULL,0u,1u,&nonce,digest)!=STNC_MINING_ERROR)return 1;
     if(stnc_mining_search(block,0u,1u,NULL,digest)!=STNC_MINING_ERROR)return 1;
