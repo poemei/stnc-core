@@ -14,7 +14,7 @@
 #include "stnc_wallet_store.h"
 
 #define STNC_BACKGROUND_MINING_RETRY_MS 1000u
-#define STNC_BACKGROUND_MINING_BLOCK_CAPACITY (1024u*1024u+4096u)
+#define STNC_BACKGROUND_MINING_BLOCK_CAPACITY STNC_STNC_BLOCK_MAX_SIZE
 
 static int initialized;
 static uint64_t next_tick_ms;
@@ -91,10 +91,6 @@ void stnc_background_mining_tick(void)
         stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
     }
     if(poll_result==0){
-        if(job.block_length!=STNC_STNM_BLOCK_HEADER_SIZE){
-            stnc_stratum_client_disconnect(&stratum);have_job=0;
-            stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
-        }
         active_job=job;next_nonce=job.initial_nonce;have_job=1;
     }
     if(!have_job)return;
@@ -103,17 +99,33 @@ void stnc_background_mining_tick(void)
         stnc_log_info("Background mining active through STN-Stratum: backend=cpu.");
     stnc_mining_service_set_running(1,STNC_MINING_BACKEND_CPU);
     start_ms=stnc_platform_monotonic_ms();
-    result=stnc_mining_search_timed(block,next_nonce,stnc_mining_service_cpu_work_ms(),
-        &attempts,&found_nonce,digest);
+    result=stnc_mining_search_target_timed(block,active_job.share_target,next_nonce,
+        stnc_mining_service_cpu_work_ms(),&attempts,&found_nonce,digest);
     elapsed_ms=stnc_platform_monotonic_ms()-start_ms;
     stnc_mining_service_record_pass(attempts,result==STNC_MINING_FOUND);
     if(attempts>0u&&elapsed_ms>0u)(void)stnc_stratum_client_progress(&stratum,active_job.work_id,attempts,elapsed_ms);
 
     if(result==STNC_MINING_FOUND){
-        stnc_log_info("Background mining found candidate work; submitting through STN-Stratum.");
-        if(stnc_stratum_client_submit(&stratum,active_job.work_id,found_nonce,&submit_result)!=0)
-            stnc_stratum_client_disconnect(&stratum);
-        have_job=0;
+        stnc_log_info("Background mining found qualifying share; submitting through STN-Stratum.");
+        if(stnc_stratum_client_submit(&stratum,active_job.work_id,found_nonce,&submit_result)!=0){
+            stnc_stratum_client_disconnect(&stratum);have_job=0;
+            stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
+        }
+        if(submit_result==STNC_STRATUM_RESULT_ACCEPTED)
+            stnc_log_info("STN-Stratum accepted qualifying share.");
+        else if(submit_result==STNC_STRATUM_RESULT_REJECTED)
+            stnc_log_info("STN-Stratum reported Chain rejection for qualifying share.");
+        else if(submit_result==STNC_STRATUM_RESULT_STALE){
+            stnc_log_info("STN-Stratum reported stale work.");have_job=0;return;
+        }else if(submit_result==STNC_STRATUM_RESULT_PROVIDER){
+            stnc_log_info("STN-Stratum provider is temporarily unavailable.");have_job=0;return;
+        }else{
+            stnc_log_error("STN-Stratum rejected the submission protocol.");
+            stnc_stratum_client_disconnect(&stratum);have_job=0;
+            stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
+        }
+        if(found_nonce==UINT64_MAX)have_job=0;
+        else next_nonce=found_nonce+1u;
     }else if(result==STNC_MINING_EXHAUSTED){
         if(attempts>UINT64_MAX-next_nonce)have_job=0;
         else next_nonce+=attempts;
