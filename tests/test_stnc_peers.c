@@ -66,7 +66,7 @@ int main(void)
 
     if (stnc_peers_add_stnp(&set, &discovered) != 0 ||
         set.count != 4u ||
-        strcmp(set.entries[1].host, "10.0.0.2") != 0) {
+        strcmp(set.entries[0].host, "10.0.0.2") != 0 ||\n        strcmp(set.entries[1].host, "2.24.217.197") != 0) {
         return 1;
     }
 
