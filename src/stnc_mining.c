@@ -9,7 +9,12 @@ int stnc_mining_hash(const uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE],uint8_t di
     if(block==NULL||digest==NULL)return 1;
     memcpy(input,domain,sizeof(domain)-1u);input[sizeof(domain)-1u]=0u;
     memcpy(input+sizeof(domain),block,STNC_STNC_BLOCK_HEADER_SIZE);
-    return stnc_platform_sha256(input,sizeof(input),digest);
+    if(stnc_platform_sha256(input,sizeof(input),digest)!=0){
+        stnc_platform_secure_clear(input,sizeof(input));
+        return 1;
+    }
+    stnc_platform_secure_clear(input,sizeof(input));
+    return 0;
 }
 int stnc_mining_hash_meets_target(const uint8_t digest[32],const uint8_t target[32])
 {
