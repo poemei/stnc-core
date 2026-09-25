@@ -491,3 +491,8 @@ int stnc_platform_https_get(
     WinHttpCloseHandle(session);
     return result;
 }
+
+uint64_t stnc_platform_monotonic_ms(void)
+{
+    return (uint64_t)GetTickCount64();
+}
