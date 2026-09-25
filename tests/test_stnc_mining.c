@@ -9,7 +9,7 @@ int stnc_platform_sha256(const unsigned char *buffer,size_t length,unsigned char
 }
 int main(void)
 {
-    uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE]={0},digest[32],target[32]={0};
+    uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE]={0},digest[32]={0},target[32]={0};
     uint64_t nonce=99u;
     target[31]=1u;
     if(!stnc_mining_hash_meets_target(digest,target))return 1;
