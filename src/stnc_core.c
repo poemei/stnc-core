@@ -40,110 +40,135 @@ static stnc_peer_candidates peer_candidates;
 static stnc_peer_qualified_set qualified_peers;
 static stnc_core_peer_status peer_status;
 
-static int stnc_core_probe_selected_peer_headers(
-    const stnc_stnp_state *peer_state
-)
+static int stnc_core_fetch_peer_block(
+    uint32_t wanted,const uint8_t *advertised,uint8_t **owned,
+    const uint8_t **block_bytes,size_t *block_length)
 {
-    uint8_t request[STNC_STNP_HEADER_SIZE + 8u];
-    uint8_t response_header[STNC_STNP_HEADER_SIZE];
+    uint8_t request[STNC_STNP_HEADER_SIZE+STNC_STNP_BLOCK_INDEX_SIZE];
+    uint8_t header[STNC_STNP_HEADER_SIZE];
+    size_t written,payload_length;
+    uint32_t index;
+    uint8_t *frame;
+
+    if(owned==NULL||block_bytes==NULL||block_length==NULL)return 1;
+    *owned=NULL;*block_bytes=NULL;*block_length=0u;
+    if(stnc_stnp_encode_get_block(wanted,request,sizeof(request),&written)!=0||
+       written!=sizeof(request)||stnc_network_send(&p2p_connection,request,written)!=0||
+       stnc_network_receive(&p2p_connection,header,sizeof(header))!=0||
+       stnc_stnp_decode_block_header(header,sizeof(header),&payload_length)!=0)return 1;
+    frame=(uint8_t *)malloc(STNC_STNP_HEADER_SIZE+payload_length);if(frame==NULL)return 1;
+    memcpy(frame,header,sizeof(header));
+    if(stnc_network_receive(&p2p_connection,frame+STNC_STNP_HEADER_SIZE,payload_length)!=0||
+       stnc_stnp_decode_block(frame,STNC_STNP_HEADER_SIZE+payload_length,&index,block_bytes,block_length)!=0||
+       index!=wanted||*block_length<STNC_STNP_HEADER_WIRE_SIZE||
+       (advertised!=NULL&&memcmp(*block_bytes,advertised,STNC_STNP_HEADER_WIRE_SIZE)!=0)){
+        free(frame);*block_bytes=NULL;*block_length=0u;return 1;
+    }
+    *owned=frame;return 0;
+}
+
+static int stnc_core_submit_peer_history(uint32_t peer_block_count)
+{
+    uint8_t **owned=NULL;
+    const uint8_t **blocks=NULL;
+    size_t *lengths=NULL;
+    size_t i;
+    int rc=1;
+
+    if(peer_block_count==0u)return 1;
+    owned=(uint8_t **)calloc(peer_block_count,sizeof(*owned));
+    blocks=(const uint8_t **)calloc(peer_block_count,sizeof(*blocks));
+    lengths=(size_t *)calloc(peer_block_count,sizeof(*lengths));
+    if(owned==NULL||blocks==NULL||lengths==NULL)goto done;
+
+    for(i=0u;i<(size_t)peer_block_count;i++){
+        if(stnc_core_fetch_peer_block((uint32_t)i,NULL,&owned[i],&blocks[i],&lengths[i])!=0){
+            stnc_log_error("Selected Chain P2P competing history retrieval failed.");goto done;
+        }
+    }
+    if(stnc_core_submit_history_evidence(blocks,lengths,peer_block_count)!=0){
+        stnc_log_error("Selected Chain P2P competing history was not adopted by Chain.");goto done;
+    }
+    stnc_log_info("Chain accepted a preferred competing history from peer evidence.");
+    rc=0;
+done:
+    if(owned!=NULL)for(i=0u;i<(size_t)peer_block_count;i++)free(owned[i]);
+    free(lengths);free(blocks);free(owned);return rc;
+}
+
+static int stnc_core_probe_selected_peer_headers(
+    const stnc_stnp_state *peer_state)
+{
+    uint8_t request[STNC_STNP_HEADER_SIZE+8u],response_header[STNC_STNP_HEADER_SIZE];
     uint8_t response_frame[STNC_STNP_HEADERS_FRAME_MAX];
-    uint8_t block_request[STNC_STNP_HEADER_SIZE + STNC_STNP_BLOCK_INDEX_SIZE];
-    uint8_t block_header[STNC_STNP_HEADER_SIZE];
-    uint8_t *block_frame;
-    const uint8_t *block_bytes;
-    size_t written,payload_length,block_payload_length,block_length;
-    uint32_t start,count,block_index,offset;
+    size_t written,payload_length;
+    uint32_t start,count,offset;
     uint64_t first_index,available;
     char message[512];
 
-    if(peer_state==NULL||!chain_state.available||
-       !stnc_network_is_connected(&p2p_connection)){
-        stnc_log_error("Selected Chain P2P synchronization prerequisites are unavailable.");
-        return 1;
+    if(peer_state==NULL||!chain_state.available||!stnc_network_is_connected(&p2p_connection)){
+        stnc_log_error("Selected Chain P2P synchronization prerequisites are unavailable.");return 1;
+    }
+
+    /* Equal height with a different tip is direct divergence evidence. Chain,
+     * not Core, evaluates the complete peer history. */
+    if(peer_state->block_count==chain_state.block_count&&
+       memcmp(peer_state->tip_id,chain_state.tip_id,sizeof(chain_state.tip_id))!=0){
+        stnc_log_info("Selected Chain P2P peer reports a competing equal-height history.");
+        return stnc_core_submit_peer_history(peer_state->block_count);
     }
 
     while((uint64_t)peer_state->block_count>(uint64_t)chain_state.block_count){
         first_index=chain_state.block_count;
         available=(uint64_t)peer_state->block_count-first_index;
         count=available>STNC_STNP_HEADERS_MAX?STNC_STNP_HEADERS_MAX:(uint32_t)available;
-        if(first_index>UINT32_MAX){
-            stnc_log_error("Selected Chain P2P synchronization start exceeds STNP index range.");
-            return 1;
-        }
+        if(first_index>UINT32_MAX)return 1;
         start=(uint32_t)first_index;
-
         if(stnc_stnp_encode_get_headers(start,count,request,sizeof(request),&written)!=0||
-           written!=sizeof(request)||
-           stnc_network_send(&p2p_connection,request,written)!=0){
-            stnc_log_error("Selected Chain P2P GET_HEADERS failed.");
-            return 1;
-        }
-
-        if(stnc_network_receive(&p2p_connection,response_header,sizeof(response_header))!=0||
-           stnc_stnp_decode_headers_header(response_header,sizeof(response_header),&payload_length)!=0){
-            stnc_log_error("Selected Chain P2P HEADERS header is unavailable or invalid.");
-            return 1;
-        }
+           stnc_network_send(&p2p_connection,request,written)!=0||
+           stnc_network_receive(&p2p_connection,response_header,sizeof(response_header))!=0||
+           stnc_stnp_decode_headers_header(response_header,sizeof(response_header),&payload_length)!=0)return 1;
         memcpy(response_frame,response_header,sizeof(response_header));
         if(stnc_network_receive(&p2p_connection,response_frame+STNC_STNP_HEADER_SIZE,payload_length)!=0||
            stnc_stnp_decode_headers(response_frame,STNC_STNP_HEADER_SIZE+payload_length,&start,&count)!=0||
-           (uint64_t)start!=first_index||count==0u||(uint64_t)count>available){
-            stnc_log_error("Selected Chain P2P HEADERS range is invalid.");
-            return 1;
-        }
+           (uint64_t)start!=first_index||count==0u||(uint64_t)count>available)return 1;
 
         for(offset=0u;offset<count;offset++){
             uint32_t wanted=start+offset;
             const uint8_t *advertised=response_frame+STNC_STNP_HEADER_SIZE+8u+
                 ((size_t)offset*STNC_STNP_HEADER_WIRE_SIZE);
+            uint8_t *owned=NULL;const uint8_t *block=NULL;size_t block_length=0u;
 
-            if(stnc_stnp_encode_get_block(wanted,block_request,sizeof(block_request),&written)!=0||
-               written!=sizeof(block_request)||
-               stnc_network_send(&p2p_connection,block_request,written)!=0||
-               stnc_network_receive(&p2p_connection,block_header,sizeof(block_header))!=0||
-               stnc_stnp_decode_block_header(block_header,sizeof(block_header),&block_payload_length)!=0){
-                stnc_log_error("Selected Chain P2P GET_BLOCK/BLOCK header failed.");
-                return 1;
+            if(stnc_core_fetch_peer_block(wanted,advertised,&owned,&block,&block_length)!=0){
+                stnc_log_error("Selected Chain P2P BLOCK does not match advertised header evidence.");return 1;
             }
-
-            block_frame=(uint8_t *)malloc(STNC_STNP_HEADER_SIZE+block_payload_length);
-            if(block_frame==NULL){
-                stnc_log_error("Selected Chain P2P BLOCK buffer allocation failed.");
-                return 1;
+            if(stnc_core_submit_block_evidence(block,block_length)!=0){
+                free(owned);
+                /* A peer can be ahead yet diverged before our current tip.
+                 * The failed linear extension is evidence of that possibility,
+                 * never authority to choose the peer. Submit its complete
+                 * history to Chain for independent fork evaluation. */
+                stnc_log_info("Linear peer evidence did not extend accepted Chain state; evaluating complete peer history.");
+                return stnc_core_submit_peer_history(peer_state->block_count);
             }
-            memcpy(block_frame,block_header,sizeof(block_header));
-
-            if(stnc_network_receive(&p2p_connection,block_frame+STNC_STNP_HEADER_SIZE,block_payload_length)!=0||
-               stnc_stnp_decode_block(block_frame,STNC_STNP_HEADER_SIZE+block_payload_length,
-                   &block_index,&block_bytes,&block_length)!=0||
-               block_index!=wanted||
-               block_length<STNC_STNP_HEADER_WIRE_SIZE||
-               memcmp(block_bytes,advertised,STNC_STNP_HEADER_WIRE_SIZE)!=0){
-                free(block_frame);
-                stnc_log_error("Selected Chain P2P BLOCK does not match advertised header evidence.");
-                return 1;
-            }
-
-            if(stnc_core_submit_block_evidence(block_bytes,block_length)!=0){
-                free(block_frame);
-                stnc_log_error("Selected Chain P2P block evidence was rejected by Chain.");
-                return 1;
-            }
-            free(block_frame);
-
-            if(chain_state.block_count!=(uint32_t)(wanted+1u)){
-                stnc_log_error("Chain accepted-state response did not advance to the submitted block.");
-                return 1;
-            }
-
-            if(snprintf(message,sizeof(message),
-                    "Chain synchronization accepted block %" PRIu32 " of %" PRIu32 ".",
+            free(owned);
+            if(chain_state.block_count!=(uint32_t)(wanted+1u))return 1;
+            if(snprintf(message,sizeof(message),"Chain synchronization accepted block %" PRIu32 " of %" PRIu32 ".",
                     wanted,peer_state->block_count-1u)<0)return 1;
             stnc_log_info(message);
         }
     }
 
-    stnc_log_info("Selected Chain P2P synchronization is current.");
+    if(peer_state->block_count<chain_state.block_count){
+        stnc_log_info("Selected Chain P2P peer is behind accepted Chain state.");
+    }else if(memcmp(peer_state->tip_id,chain_state.tip_id,sizeof(chain_state.tip_id))!=0){
+        /* The loop can make counts equal after a stale peer STATE snapshot.
+         * A differing advertised tip still requires Chain-side evaluation. */
+        stnc_log_info("Selected Chain P2P peer tip differs from accepted Chain state.");
+        return stnc_core_submit_peer_history(peer_state->block_count);
+    }else{
+        stnc_log_info("Selected Chain P2P synchronization is current.");
+    }
     return 0;
 }
 static int stnc_core_select_peer(void);
