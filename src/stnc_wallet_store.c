@@ -17,7 +17,7 @@ static int wallet_path(char path[STNC_WALLET_PATH_MAX])
     if(stnc_platform_get_app_directory(path,STNC_WALLET_PATH_MAX)!=0)return 1;
     n=strlen(path);
     if(n+1u+strlen(STNC_WALLET_FILE)+1u>STNC_WALLET_PATH_MAX)return 1;
-    path[n++]='\\';memcpy(path+n,STNC_WALLET_FILE,strlen(STNC_WALLET_FILE)+1u);
+    path[n++]=stnc_platform_path_separator();memcpy(path+n,STNC_WALLET_FILE,strlen(STNC_WALLET_FILE)+1u);
     return 0;
 }
 int stnc_wallet_store_exists(void)
