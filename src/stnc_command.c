@@ -7,6 +7,7 @@
 #include "stnc_stnc.h"
 #include "stnc_wallet.h"
 #include "stnc_wallet_store.h"
+#include "stnc_wallet_status.h"
 #include "stnc_platform.h"
 
 static void stnc_command_print_usage(void)
@@ -148,8 +149,8 @@ static int stnc_command_contract(int argc, char **argv)
 
 static int stnc_command_wallet(int argc,char **argv)
 {
-    stnc_wallet_key key;char address[STNC_WALLET_ADDRESS_SIZE+1u];uint64_t units;
-    memset(&key,0,sizeof(key));
+    stnc_wallet_key key;stnc_wallet_status status;char address[STNC_WALLET_ADDRESS_SIZE+1u];uint64_t units;
+    memset(&key,0,sizeof(key));memset(&status,0,sizeof(status));
     if(argc!=3){stnc_command_print_usage();return 1;}
     if(strcmp(argv[2],"create")==0){
         if(stnc_wallet_store_exists()){fprintf(stderr,"Wallet already exists.\n");return 1;}
@@ -160,10 +161,14 @@ static int stnc_command_wallet(int argc,char **argv)
         if(stnc_wallet_store_load(&key)!=0||stnc_wallet_address(&key,address)!=0){stnc_wallet_clear(&key);fprintf(stderr,"Wallet is unavailable.\n");return 1;}
         if(strcmp(argv[2],"show")==0){printf("%s\n",address);stnc_wallet_clear(&key);return 0;}
         if(strcmp(argv[2],"status")==0){
-            printf("Wallet status\n  Present: yes\n  Key integrity: valid\n  Address: %s\n",address);
-            if(stnc_core_balance(address,&units)==0)printf("  Accepted balance: %" PRIu64 "\n",units);
+            stnc_wallet_clear(&key);
+            if(stnc_wallet_status_read(&status)!=0){fprintf(stderr,"Wallet status failed.\n");return 1;}
+            printf("Wallet status\n  Present: %s\n  Key integrity: %s\n",
+                status.present?"yes":"no",status.key_valid?"valid":"invalid");
+            if(status.key_valid)printf("  Address: %s\n",status.address);
+            if(status.balance_available)printf("  Accepted balance: %" PRIu64 "\n",status.accepted_balance);
             else printf("  Accepted balance: unavailable\n");
-            stnc_wallet_clear(&key);return 0;
+            return status.present&&status.key_valid?0:1;
         }
         if(stnc_core_balance(address,&units)!=0){stnc_wallet_clear(&key);fprintf(stderr,"Wallet balance query failed.\n");return 1;}
         printf("%" PRIu64 "\n",units);stnc_wallet_clear(&key);return 0;
