@@ -16,6 +16,7 @@
 #include "stnc_stnp.h"
 
 #define STNC_INFO_REQUEST_ID UINT64_C(1)
+#define STNC_DERIVE_ADDRESS_REQUEST_ID UINT64_C(2)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
@@ -1246,7 +1247,7 @@ int stnc_core_derive_address(
             type,
             source,
             source_length,
-            stnc_next_request_id(),
+            STNC_DERIVE_ADDRESS_REQUEST_ID,
             request,
             sizeof(request),
             &written
@@ -1263,6 +1264,7 @@ int stnc_core_derive_address(
             &response
         ) != 0 ||
         response.method != STNC_STNC_METHOD_DERIVE_ADDRESS ||
+        response.request_id != STNC_DERIVE_ADDRESS_REQUEST_ID ||
         response.code != STNC_STNC_OK) {
         return 1;
     }
