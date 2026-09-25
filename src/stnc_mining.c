@@ -30,7 +30,13 @@ stnc_mining_result stnc_mining_search(uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE]
     memset(digest,0,32u);
     memcpy(target,block+120u,32u);
     for(i=0u;i<attempts;i++){
-        if(i>UINT64_MAX-first_nonce)return STNC_MINING_EXHAUSTED;
+        if(i>UINT64_MAX-first_nonce){
+            *found_nonce=0u;
+            memset(digest,0,32u);
+            stnc_platform_secure_clear(hash,sizeof(hash));
+            stnc_platform_secure_clear(target,sizeof(target));
+            return STNC_MINING_EXHAUSTED;
+        }
         nonce=first_nonce+i;
         put64(block+STNC_STNC_MINING_NONCE_OFFSET,nonce);
         memset(hash,0,sizeof(hash));
