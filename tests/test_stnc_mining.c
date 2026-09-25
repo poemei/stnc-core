@@ -6,6 +6,7 @@ static uint8_t last_input[STNC_MINING_HASH_INPUT_SIZE];
 static size_t last_length;
 static unsigned int sha_calls;
 static int sha_fail;
+static int sha_partial_fail;
 static unsigned int clear_calls;
 static size_t clear_length;
 static size_t clear_lengths[8];
@@ -24,6 +25,7 @@ int stnc_platform_sha256(const unsigned char *buffer,size_t length,unsigned char
     sha_calls++;
     if(sha_fail)return 1;
     if(buffer==NULL||digest==NULL||length>sizeof(last_input))return 1;
+    if(sha_partial_fail){digest[0]=0xffu;digest[31]=0xffu;return 1;}
     memcpy(last_input,buffer,length);last_length=length;
     for(i=0u;i<32u;i++)digest[i]=0u;
     return 0;
@@ -91,6 +93,11 @@ int main(void)
        clear_lengths[1]!=32u||clear_lengths[2]!=32u||nonce!=0u||
        digest[0]!=0u||digest[31]!=0u)return 1;
     sha_fail=0;
+
+    memset(block+120u,0xff,32u);sha_partial_fail=1;nonce=UINT64_MAX;memset(digest,0xa5,sizeof(digest));
+    if(stnc_mining_search(block,0u,1u,&nonce,digest)!=STNC_MINING_ERROR||
+       nonce!=0u||digest[0]!=0u||digest[31]!=0u)return 1;
+    sha_partial_fail=0;
 
     sha_calls=0u;
     if(stnc_mining_search(block,0u,0u,&nonce,digest)!=STNC_MINING_ERROR||sha_calls!=0u)return 1;
