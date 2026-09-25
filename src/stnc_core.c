@@ -3,6 +3,8 @@
 #include <string.h>
 
 #include "stnc_config.h"
+#include "stnc_directory.h"
+#include "stnc_http.h"
 #include "stnc_core.h"
 #include "stnc_log.h"
 #include "stnc_network.h"
@@ -16,6 +18,8 @@
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
 #define STNC_ROOT_PEER_RETRY_INTERVAL_MS 30000u
+#define STNC_DIRECTORY_HOST "stn-chain.org"
+#define STNC_DIRECTORY_PATH "/peers?format=json"
 
 static stnc_core_state core_state = STNC_CORE_STATE_UNINITIALIZED;
 static stnc_network_connection chain_connection;
@@ -182,6 +186,52 @@ static int stnc_core_connect_configured_peer(int log_qualification)
     return 0;
 }
 
+
+
+static int stnc_core_discover_directory_peers(void)
+{
+    char response[STNC_DIRECTORY_RESPONSE_MAX + 1u];
+    size_t response_length;
+    size_t previous_count;
+    char message[512];
+
+    memset(response, 0, sizeof(response));
+    response_length = 0;
+    previous_count = peer_candidates.count;
+
+    if (stnc_http_get_https(
+            STNC_DIRECTORY_HOST,
+            STNC_DIRECTORY_PATH,
+            response,
+            sizeof(response),
+            &response_length
+        ) != 0) {
+        stnc_log_error("ChAoS MVC peer directory request failed.");
+        return 1;
+    }
+
+    if (stnc_directory_decode(
+            response,
+            response_length,
+            &peer_candidates
+        ) != 0) {
+        stnc_log_error("ChAoS MVC peer directory response is invalid.");
+        return 1;
+    }
+
+    if (snprintf(
+            message,
+            sizeof(message),
+            "ChAoS MVC peer directory admitted %zu candidate(s); Core set contains %zu candidate(s).",
+            peer_candidates.count - previous_count,
+            peer_candidates.count
+        ) < 0) {
+        return 1;
+    }
+
+    stnc_log_info(message);
+    return 0;
+}
 
 static int stnc_core_qualify_root_peer(void)
 {
@@ -527,6 +577,10 @@ int stnc_core_init(void)
         root_peer_capabilities = 0;
         stnc_log_error("Configured Chain P2P root peer is currently unavailable.");
         stnc_log_info("STNC Core will continue using the qualified Chain RPC connection.");
+    }
+
+    if (stnc_core_discover_directory_peers() != 0) {
+        stnc_log_info("STNC Core will continue without the public peer directory.");
     }
 
     return 0;
