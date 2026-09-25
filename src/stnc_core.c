@@ -7,6 +7,7 @@
 #include "stnc_log.h"
 #include "stnc_network.h"
 #include "stnc_platform.h"
+#include "stnc_peers.h"
 #include "stnc_stnc.h"
 #include "stnc_stnp.h"
 
@@ -20,6 +21,7 @@ static stnc_core_state core_state = STNC_CORE_STATE_UNINITIALIZED;
 static stnc_network_connection chain_connection;
 static stnc_core_chain_state chain_state;
 static uint32_t root_peer_capabilities;
+static stnc_peer_candidates peer_candidates;
 
 static void stnc_core_clear_chain_state(void)
 {
@@ -360,6 +362,22 @@ static int stnc_core_qualify_root_peer(void)
         }
         stnc_log_info(message);
 
+        if (stnc_peers_add_stnp(&peer_candidates, &peers) != 0) {
+            stnc_log_error("Chain P2P root peer discovery candidate admission failed.");
+            root_peer_capabilities = 0;
+            stnc_network_disconnect(&connection);
+            return 1;
+        }
+
+        if (snprintf(message, sizeof(message),
+                "Core peer candidate set contains %zu candidate(s).",
+                peer_candidates.count) < 0) {
+            root_peer_capabilities = 0;
+            stnc_network_disconnect(&connection);
+            return 1;
+        }
+        stnc_log_info(message);
+
         for (index = 0; index < peers.count; ++index) {
             if (snprintf(message, sizeof(message),
                     "Discovered Chain P2P candidate: %u.%u.%u.%u:%u",
@@ -434,6 +452,7 @@ int stnc_core_init(void)
     }
 
     stnc_core_clear_chain_state();
+    stnc_peers_clear(&peer_candidates);
 
     if (stnc_platform_init() != 0) {
         return 1;
@@ -603,6 +622,7 @@ void stnc_core_shutdown(void)
     }
 
     root_peer_capabilities = 0;
+    stnc_peers_clear(&peer_candidates);
     stnc_core_clear_chain_state();
     stnc_network_shutdown();
     stnc_config_shutdown();
