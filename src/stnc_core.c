@@ -1448,24 +1448,26 @@ int stnc_core_mining_context(stnc_mining_context *context)
     return stnc_stnc_decode_mining_context(payload,sizeof(payload),context);
 }
 
-int stnc_core_check_work_base(const uint8_t tip_id[32],stnc_mining_context *context)
+stnc_core_work_base_result stnc_core_check_work_base(const uint8_t tip_id[32],stnc_mining_context *context)
 {
     uint8_t request[STNC_STNC_HEADER_SIZE+32u],header[STNC_STNC_HEADER_SIZE];
     uint8_t payload[STNC_STNC_MINING_CONTEXT_SIZE];stnc_stnc_message response;size_t written;
     if(tip_id==NULL||context==NULL||core_state==STNC_CORE_STATE_UNINITIALIZED||
-       core_state==STNC_CORE_STATE_STOPPED||!stnc_network_is_connected(&chain_connection))return 1;
+       core_state==STNC_CORE_STATE_STOPPED||!stnc_network_is_connected(&chain_connection))return STNC_CORE_WORK_BASE_ERROR;
+    memset(context,0,sizeof(*context));
     if(stnc_stnc_encode_check_work_base(tip_id,STNC_CHECK_WORK_BASE_REQUEST_ID,
             request,sizeof(request),&written)!=0||
        stnc_network_send(&chain_connection,request,written)!=0||
        stnc_network_receive(&chain_connection,header,sizeof(header))!=0||
        stnc_stnc_decode_header(header,sizeof(header),&response)!=0||
        response.method!=STNC_STNC_METHOD_CHECK_WORK_BASE||
-       response.request_id!=STNC_CHECK_WORK_BASE_REQUEST_ID||
-       response.code!=STNC_STNC_OK||response.length!=sizeof(payload)||
-       stnc_network_receive(&chain_connection,payload,sizeof(payload))!=0)return 1;
-    return stnc_stnc_decode_mining_context(payload,sizeof(payload),context);
+       response.request_id!=STNC_CHECK_WORK_BASE_REQUEST_ID)return STNC_CORE_WORK_BASE_ERROR;
+    if(response.code==STNC_STNC_STALE&&response.length==0u)return STNC_CORE_WORK_BASE_STALE;
+    if(response.code!=STNC_STNC_OK||response.length!=sizeof(payload)||
+       stnc_network_receive(&chain_connection,payload,sizeof(payload))!=0||
+       stnc_stnc_decode_mining_context(payload,sizeof(payload),context)!=0)return STNC_CORE_WORK_BASE_ERROR;
+    return STNC_CORE_WORK_BASE_CURRENT;
 }
-
 int stnc_core_mining_template(uint8_t **payload,size_t *payload_length,stnc_mining_template *work)
 {
     uint8_t request[STNC_STNC_HEADER_SIZE],header[STNC_STNC_HEADER_SIZE],*owned;
