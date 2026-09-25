@@ -37,6 +37,7 @@ cl /nologo /W4 /TC /Iincludes ^
     src\stnc_http.c ^
     src\stnc_network.c ^
     src\stnc_peers.c ^
+    src\stnc_peer_select.c ^
     src\stnc_stnc.c ^
     src\stnc_stnp.c ^
     platforms\windows\platform_windows.c ^
@@ -102,6 +103,20 @@ build\test-stnc-http.exe
 if errorlevel 1 (
     echo.
     echo HTTP TEST FAILED
+    exit /b 1
+)
+
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_peer_select.c src\stnc_peer_select.c /Fe:build\test-stnc-peer-select.exe
+if errorlevel 1 (
+    echo.
+    echo PEER SELECT TEST BUILD FAILED
+    exit /b 1
+)
+
+build\test-stnc-peer-select.exe
+if errorlevel 1 (
+    echo.
+    echo PEER SELECT TEST FAILED
     exit /b 1
 )
 
