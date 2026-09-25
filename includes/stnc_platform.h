@@ -36,6 +36,10 @@ int stnc_platform_network_receive(
     size_t length
 );
 
+int stnc_platform_network_read_ready(
+    void *handle
+);
+
 void stnc_platform_network_disconnect(
     void *handle
 );
