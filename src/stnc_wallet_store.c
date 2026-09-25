@@ -28,15 +28,15 @@ int stnc_wallet_store_exists(void)
 }
 int stnc_wallet_store_create(stnc_wallet_key *key)
 {
-    char path[STNC_WALLET_PATH_MAX];FILE *f;uint8_t file[STNC_WALLET_FILE_SIZE];stnc_wallet_key generated;
+    char path[STNC_WALLET_PATH_MAX];uint8_t file[STNC_WALLET_FILE_SIZE];stnc_wallet_key generated;
     if(key==NULL||wallet_path(path)!=0||stnc_wallet_store_exists())return 1;
     memset(&generated,0,sizeof(generated));memset(file,0,sizeof(file));
     if(stnc_wallet_generate(&generated)!=0)return 1;
     memcpy(file,STNC_WALLET_FILE_MAGIC,4);file[4]=STNC_WALLET_FILE_VERSION;
     memcpy(file+5,generated.private_key,32);memcpy(file+37,generated.public_key,32);
-    f=fopen(path,"wb");if(f==NULL){stnc_wallet_clear(&generated);stnc_platform_secure_clear(file,sizeof(file));return 1;}
-    if(fwrite(file,1,sizeof(file),f)!=sizeof(file)||fclose(f)!=0){remove(path);stnc_wallet_clear(&generated);stnc_platform_secure_clear(file,sizeof(file));return 1;}
-    if(stnc_platform_protect_private_file(path)!=0){remove(path);stnc_wallet_clear(&generated);stnc_platform_secure_clear(file,sizeof(file));return 1;}
+    if(stnc_platform_write_private_file(path,file,sizeof(file))!=0){
+        stnc_wallet_clear(&generated);stnc_platform_secure_clear(file,sizeof(file));return 1;
+    }
     *key=generated;stnc_platform_secure_clear(file,sizeof(file));return 0;
 }
 int stnc_wallet_store_load(stnc_wallet_key *key)
