@@ -22,6 +22,7 @@
 #define STNC_STNC_OK 0u
 
 #define STNC_STNC_METHOD_INFO 1u
+#define STNC_STNC_METHOD_BLOCK_HEIGHT 2u
 #define STNC_STNC_METHOD_DERIVE_ADDRESS 9u
 #define STNC_STNC_METHOD_BALANCE 10u
 #define STNC_STNC_METHOD_CONTRACT_STATE 11u
@@ -105,6 +106,10 @@ int stnc_stnc_encode(
     uint8_t *buffer,
     size_t capacity,
     size_t *written
+);
+
+int stnc_stnc_encode_block_height(
+    uint64_t height,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written
 );
 
 int stnc_stnc_encode_derive_address(
