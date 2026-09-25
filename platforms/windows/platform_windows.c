@@ -338,6 +338,31 @@ int stnc_platform_network_receive(
     return 0;
 }
 
+int stnc_platform_network_read_ready(void *handle)
+{
+    SOCKET socket_handle;
+    fd_set read_set;
+    struct timeval timeout;
+    int result;
+
+    if (!network_initialized || handle == NULL) {
+        return -1;
+    }
+
+    socket_handle = (SOCKET)(uintptr_t)handle;
+    FD_ZERO(&read_set);
+    FD_SET(socket_handle, &read_set);
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 0;
+
+    result = select(0, &read_set, NULL, NULL, &timeout);
+    if (result == SOCKET_ERROR) {
+        return -1;
+    }
+
+    return result > 0 && FD_ISSET(socket_handle, &read_set) ? 1 : 0;
+}
+
 void stnc_platform_network_disconnect(void *handle)
 {
     SOCKET socket_handle;
