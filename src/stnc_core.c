@@ -25,6 +25,10 @@
 #define STNC_HISTORY_EVIDENCE_REQUEST_ID UINT64_C(8)
 #define STNC_SUFFIX_EVIDENCE_REQUEST_ID UINT64_C(9)
 #define STNC_BLOCK_HEIGHT_REQUEST_ID UINT64_C(10)
+#define STNC_SUFFIX_STAGE_BEGIN_REQUEST_ID UINT64_C(11)
+#define STNC_SUFFIX_STAGE_APPEND_REQUEST_ID UINT64_C(12)
+#define STNC_SUFFIX_STAGE_COMMIT_REQUEST_ID UINT64_C(13)
+#define STNC_SUFFIX_STAGE_ABORT_REQUEST_ID UINT64_C(14)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
@@ -108,6 +112,76 @@ static int stnc_core_common_prefix(uint32_t peer_count,uint32_t *prefix)
     *prefix=low;return 0;
 }
 
+static int stnc_core_stage_control(uint16_t method,uint64_t request_id,stnc_stnc_message *response)
+{
+    uint8_t request[STNC_STNC_HEADER_SIZE],header[STNC_STNC_HEADER_SIZE];size_t written;
+    if(response==NULL||stnc_stnc_encode_suffix_stage_control(method,request_id,
+            request,sizeof(request),&written)!=0||
+       stnc_network_send(&chain_connection,request,written)!=0||
+       stnc_network_receive(&chain_connection,header,sizeof(header))!=0||
+       stnc_stnc_decode_header(header,sizeof(header),response)!=0||
+       response->method!=method||response->request_id!=request_id)return 1;
+    return 0;
+}
+
+static void stnc_core_stage_abort(void)
+{
+    stnc_stnc_message response;
+    (void)stnc_core_stage_control(STNC_STNC_METHOD_SUFFIX_STAGE_ABORT,
+        STNC_SUFFIX_STAGE_ABORT_REQUEST_ID,&response);
+}
+
+static stnc_core_evidence_result stnc_core_submit_peer_history_staged(
+    uint32_t prefix,uint32_t suffix_count)
+{
+    uint8_t begin[STNC_STNC_HEADER_SIZE+8u],header[STNC_STNC_HEADER_SIZE];
+    uint8_t *owned=NULL,*request=NULL,*payload=NULL;const uint8_t *block=NULL;
+    const uint8_t *blocks[1];size_t lengths[1],block_length=0u,written,capacity;
+    stnc_stnc_message response;uint32_t offset;uint64_t height;uint8_t tip[32],work[40];
+    stnc_core_evidence_result rc=STNC_CORE_EVIDENCE_ERROR;
+
+    if(stnc_stnc_encode_suffix_stage_begin(prefix,suffix_count,
+            STNC_SUFFIX_STAGE_BEGIN_REQUEST_ID,begin,sizeof(begin),&written)!=0||
+       stnc_network_send(&chain_connection,begin,written)!=0||
+       stnc_network_receive(&chain_connection,header,sizeof(header))!=0||
+       stnc_stnc_decode_header(header,sizeof(header),&response)!=0||
+       response.method!=STNC_STNC_METHOD_SUFFIX_STAGE_BEGIN||
+       response.request_id!=STNC_SUFFIX_STAGE_BEGIN_REQUEST_ID||
+       response.code!=STNC_STNC_OK||response.length!=0u)return rc;
+
+    for(offset=0u;offset<suffix_count;offset++){
+        if(stnc_core_fetch_peer_block(prefix+offset,NULL,&owned,&block,&block_length)!=0)goto abort;
+        blocks[0]=block;lengths[0]=block_length;
+        if(block_length>SIZE_MAX-STNC_STNC_HEADER_SIZE-12u)goto abort;
+        capacity=STNC_STNC_HEADER_SIZE+12u+block_length;
+        request=(uint8_t *)malloc(capacity);if(request==NULL)goto abort;
+        if(stnc_stnc_encode_suffix_stage_append(offset,blocks,lengths,1u,
+                STNC_SUFFIX_STAGE_APPEND_REQUEST_ID,request,capacity,&written)!=0||
+           stnc_network_send(&chain_connection,request,written)!=0||
+           stnc_network_receive(&chain_connection,header,sizeof(header))!=0||
+           stnc_stnc_decode_header(header,sizeof(header),&response)!=0||
+           response.method!=STNC_STNC_METHOD_SUFFIX_STAGE_APPEND||
+           response.request_id!=STNC_SUFFIX_STAGE_APPEND_REQUEST_ID||
+           response.code!=STNC_STNC_OK||response.length!=0u)goto abort;
+        free(request);request=NULL;free(owned);owned=NULL;block=NULL;
+    }
+
+    if(stnc_core_stage_control(STNC_STNC_METHOD_SUFFIX_STAGE_COMMIT,
+            STNC_SUFFIX_STAGE_COMMIT_REQUEST_ID,&response)!=0)goto abort;
+    if(response.code==STNC_STNC_CURRENT&&response.length==0u)return STNC_CORE_EVIDENCE_CURRENT;
+    if(response.code!=STNC_STNC_OK||response.length!=STNC_STNC_BLOCK_ACCEPTED_SIZE)goto abort;
+    payload=(uint8_t *)malloc(response.length);if(payload==NULL)goto abort;
+    if(stnc_network_receive(&chain_connection,payload,response.length)!=0||
+       stnc_stnc_decode_block_accepted(payload,response.length,tip,&height,work)!=0)goto abort;
+    memcpy(chain_state.tip_id,tip,32u);chain_state.height=height;
+    memcpy(chain_state.cumulative_work,work,40u);
+    chain_state.block_count=height<UINT32_MAX?(uint32_t)(height+1u):UINT32_MAX;
+    chain_state.available=1;rc=STNC_CORE_EVIDENCE_ADOPTED;
+    free(payload);return rc;
+abort:
+    free(payload);free(request);free(owned);stnc_core_stage_abort();return rc;
+}
+
 static int stnc_core_submit_peer_history(uint32_t peer_block_count)
 {
     uint8_t **owned=NULL;const uint8_t **blocks=NULL;size_t *lengths=NULL;
@@ -127,8 +201,18 @@ static int stnc_core_submit_peer_history(uint32_t peer_block_count)
         if(stnc_core_fetch_peer_block(index,NULL,&owned[i],&blocks[i],&lengths[i])!=0)goto done;
         if(total>STNC_HISTORY_EVIDENCE_MAX_BYTES-4u||
            lengths[i]>STNC_HISTORY_EVIDENCE_MAX_BYTES-total-4u){
-            stnc_log_info("Selected Chain P2P divergent suffix exceeds one STNC evidence frame; peer retained pending staged recovery.");
-            rc=0;goto done;
+            stnc_core_evidence_result staged;
+            for(;i<(size_t)suffix_count;i++)free(owned[i]);
+            free(lengths);free(blocks);free(owned);
+            stnc_log_info("Selected Chain P2P divergent suffix exceeds one STNC evidence frame; starting staged recovery.");
+            staged=stnc_core_submit_peer_history_staged(prefix,suffix_count);
+            if(staged==STNC_CORE_EVIDENCE_CURRENT){
+                stnc_log_info("Chain retained current accepted state after staged peer suffix evidence.");return 0;
+            }
+            if(staged==STNC_CORE_EVIDENCE_ADOPTED){
+                stnc_log_info("Chain accepted a preferred staged peer suffix.");return 0;
+            }
+            return 1;
         }
         total+=4u+lengths[i];
     }
