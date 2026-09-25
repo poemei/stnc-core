@@ -32,6 +32,7 @@
 #define STNC_MINING_CONTEXT_REQUEST_ID UINT64_C(15)
 #define STNC_MINING_TEMPLATE_REQUEST_ID UINT64_C(16)
 #define STNC_CHECK_WORK_BASE_REQUEST_ID UINT64_C(17)
+#define STNC_SUBMIT_WORK_REQUEST_ID UINT64_C(18)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
@@ -1488,6 +1489,38 @@ int stnc_core_mining_template(uint8_t **payload,size_t *payload_length,stnc_mini
     *payload=owned;*payload_length=response.length;return 0;
 }
 void stnc_core_mining_template_release(uint8_t *payload){free(payload);}
+
+int stnc_core_submit_work(
+    const uint8_t parent_id[32],const uint8_t work_id[32],const char *miner_identity,
+    const uint8_t *block,size_t block_length,uint8_t block_id[32],uint64_t *height,
+    uint8_t cumulative_work[40])
+{
+    uint8_t *request=NULL,header[STNC_STNC_HEADER_SIZE],payload[STNC_STNC_BLOCK_ACCEPTED_SIZE];
+    stnc_stnc_message response;size_t capacity,written;int rc=1;
+    if(parent_id==NULL||work_id==NULL||miner_identity==NULL||block==NULL||
+       block_id==NULL||height==NULL||cumulative_work==NULL||
+       core_state==STNC_CORE_STATE_UNINITIALIZED||core_state==STNC_CORE_STATE_STOPPED||
+       !stnc_network_is_connected(&chain_connection)||
+       block_length>SIZE_MAX-STNC_STNC_HEADER_SIZE-STNC_STNC_MINING_SUBMISSION_PREFIX_SIZE)return 1;
+    capacity=STNC_STNC_HEADER_SIZE+STNC_STNC_MINING_SUBMISSION_PREFIX_SIZE+block_length;
+    request=(uint8_t *)malloc(capacity);if(request==NULL)return 1;
+    if(stnc_stnc_encode_submit_work(parent_id,work_id,miner_identity,block,block_length,
+            STNC_SUBMIT_WORK_REQUEST_ID,request,capacity,&written)!=0||
+       stnc_network_send(&chain_connection,request,written)!=0||
+       stnc_network_receive(&chain_connection,header,sizeof(header))!=0||
+       stnc_stnc_decode_header(header,sizeof(header),&response)!=0||
+       response.method!=STNC_STNC_METHOD_SUBMIT_WORK||
+       response.request_id!=STNC_SUBMIT_WORK_REQUEST_ID||
+       response.code!=STNC_STNC_OK||response.length!=sizeof(payload)||
+       stnc_network_receive(&chain_connection,payload,sizeof(payload))!=0||
+       stnc_stnc_decode_block_accepted(payload,sizeof(payload),block_id,height,cumulative_work)!=0)goto done;
+    memcpy(chain_state.tip_id,block_id,32u);chain_state.height=*height;
+    memcpy(chain_state.cumulative_work,cumulative_work,40u);
+    chain_state.block_count=*height<UINT32_MAX?(uint32_t)(*height+1u):UINT32_MAX;
+    chain_state.available=1;rc=0;
+done:
+    free(request);return rc;
+}
 
 int stnc_core_submit_block_evidence(const uint8_t *block,size_t block_length)
 {
