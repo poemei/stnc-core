@@ -103,11 +103,12 @@ int main(void)
     }
 
     memset(block,0,sizeof(block));memset(block+120u,0u,32u);memcpy(original,block,sizeof(block));
-    nonce=UINT64_MAX;memset(digest,0xa5,sizeof(digest));sha_calls=0u;
+    nonce=UINT64_MAX;memset(digest,0xa5,sizeof(digest));sha_nonzero=1;sha_calls=0u;
     if(stnc_mining_search(block,UINT64_C(9),3u,&nonce,digest)!=STNC_MINING_EXHAUSTED||
        sha_calls!=3u||nonce!=0u||digest[0]!=0u||digest[31]!=0u||
        block[152]!=0u||block[153]!=0u||block[154]!=0u||block[155]!=0u||
        block[156]!=0u||block[157]!=0u||block[158]!=0u||block[159]!=11u)return TEST_FAIL();
+    sha_nonzero=0;
     if(memcmp(block,original,STNC_STNC_MINING_NONCE_OFFSET)!=0||
        memcmp(block+STNC_STNC_MINING_NONCE_OFFSET+STNC_STNC_MINING_NONCE_SIZE,
               original+STNC_STNC_MINING_NONCE_OFFSET+STNC_STNC_MINING_NONCE_SIZE,
