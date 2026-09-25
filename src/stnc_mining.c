@@ -7,8 +7,9 @@ int stnc_mining_hash(const uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE],uint8_t di
     static const uint8_t domain[]="STN-CHAIN:BLOCK:ID:1";
     uint8_t input[STNC_MINING_HASH_INPUT_SIZE];
     if(block==NULL||digest==NULL)return 1;
-    memcpy(input,domain,sizeof(domain)-1u);input[sizeof(domain)-1u]=0u;
-    memcpy(input+sizeof(domain),block,STNC_STNC_BLOCK_HEADER_SIZE);
+    if(sizeof(domain)!=STNC_MINING_HASH_DOMAIN_SIZE)return 1;
+    memcpy(input,domain,sizeof(domain));
+    memcpy(input+STNC_MINING_HASH_DOMAIN_SIZE,block,STNC_STNC_BLOCK_HEADER_SIZE);
     if(stnc_platform_sha256(input,sizeof(input),digest)!=0){
         stnc_platform_secure_clear(input,sizeof(input));
         return 1;
