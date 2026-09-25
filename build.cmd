@@ -149,6 +149,20 @@ if errorlevel 1 (
     exit /b 1
 )
 
+
+cl /nologo /W4 /TC /D_CRT_SECURE_NO_WARNINGS /Iincludes tests\test_stnc_wallet_store.c src\stnc_wallet_store.c src\stnc_wallet.c platforms\windows\platform_windows.c src\crypto\ed25519_donna\ed25519_provider.c src\stnc_core.c src\stnc_log.c src\stnc_config.c src\stnc_directory.c src\stnc_http.c src\stnc_network.c src\stnc_peers.c src\stnc_peer_select.c src\stnc_stnc.c src\stnc_stnp.c /Fe:build\test-stnc-wallet-store.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
+if errorlevel 1 (
+    echo.
+    echo WALLET STORE TEST BUILD FAILED
+    exit /b 1
+)
+build\test-stnc-wallet-store.exe
+if errorlevel 1 (
+    echo.
+    echo WALLET STORE TEST FAILED
+    exit /b 1
+)
+
 echo.
 echo BUILD SUCCESSFUL
 echo build\stnc-core.exe
