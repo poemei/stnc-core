@@ -11,6 +11,8 @@
 #define STNC_WALLET_TRANSFER_SIZE 214u
 #define STNC_WALLET_TRANSFER_STATEMENT_SIZE 178u
 
+int stnc_ed25519_publickey(const uint8_t private_key[32],uint8_t public_key[32]);
+
 typedef struct stnc_wallet_key {
     uint8_t public_key[STNC_WALLET_PUBLIC_KEY_SIZE];
     uint8_t private_key[STNC_WALLET_PRIVATE_KEY_SIZE];
