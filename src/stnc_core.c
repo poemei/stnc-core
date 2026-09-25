@@ -1220,6 +1220,76 @@ int stnc_core_init(void)
     return 0;
 }
 
+int stnc_core_derive_address(
+    uint16_t type,
+    const uint8_t *source,
+    size_t source_length,
+    char *address,
+    size_t capacity
+)
+{
+    uint8_t request[STNC_STNC_DERIVE_FRAME_MAX];
+    uint8_t response_header[STNC_STNC_HEADER_SIZE];
+    uint8_t response_payload[STNC_STNC_ADDRESS_MAX_SIZE];
+    stnc_stnc_message response;
+    size_t written;
+    size_t expected_length;
+
+    if (core_state == STNC_CORE_STATE_UNINITIALIZED ||
+        core_state == STNC_CORE_STATE_STOPPED ||
+        !stnc_network_is_connected(&chain_connection) ||
+        address == NULL) {
+        return 1;
+    }
+
+    if (stnc_stnc_encode_derive_address(
+            type,
+            source,
+            source_length,
+            stnc_next_request_id(),
+            request,
+            sizeof(request),
+            &written
+        ) != 0 ||
+        stnc_network_send(&chain_connection, request, written) != 0 ||
+        stnc_network_receive(
+            &chain_connection,
+            response_header,
+            sizeof(response_header)
+        ) != 0 ||
+        stnc_stnc_decode_header(
+            response_header,
+            sizeof(response_header),
+            &response
+        ) != 0 ||
+        response.method != STNC_STNC_METHOD_DERIVE_ADDRESS ||
+        response.code != STNC_STNC_OK) {
+        return 1;
+    }
+
+    expected_length = type == STNC_STNC_ADDRESS_IDENTITY
+        ? STNC_STNC_ADDRESS_IDENTITY_SIZE
+        : STNC_STNC_ADDRESS_TYPED_SIZE;
+
+    if (response.length != expected_length ||
+        stnc_network_receive(
+            &chain_connection,
+            response_payload,
+            response.length
+        ) != 0 ||
+        stnc_stnc_decode_address(
+            type,
+            response_payload,
+            response.length,
+            address,
+            capacity
+        ) != 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
 int stnc_core_run(void)
 {
     unsigned int refresh_elapsed;
