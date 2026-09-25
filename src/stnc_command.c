@@ -185,7 +185,10 @@ static int stnc_command_mining(int argc,char **argv)
         {stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
         if(base!=STNC_CORE_WORK_BASE_CURRENT){stnc_core_mining_template_release(payload);
             fprintf(stderr,base==STNC_CORE_WORK_BASE_STALE?"Mining work base is stale.\n":"Mining work base check failed.\n");return 1;}}
-        switch(stnc_mining_search(block,0u,attempts,&nonce,digest)){
+        {uint64_t first_nonce=0u;
+        size_t k;
+        for(k=0u;k<STNC_STNC_MINING_NONCE_SIZE;k++)first_nonce=(first_nonce<<8)|block[STNC_STNC_MINING_NONCE_OFFSET+k];
+        switch(stnc_mining_search(block,first_nonce,attempts,&nonce,digest)){
         case STNC_MINING_FOUND:
             {stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
             if(base!=STNC_CORE_WORK_BASE_CURRENT){stnc_core_mining_template_release(payload);
@@ -201,7 +204,7 @@ static int stnc_command_mining(int argc,char **argv)
             stnc_core_mining_template_release(payload);return 0;
         default:
             stnc_core_mining_template_release(payload);fprintf(stderr,"Mining worker failed.\n");return 1;
-        }
+        }}
     }
     if(strcmp(argv[2],"status")==0){
         stnc_mining_context context;
