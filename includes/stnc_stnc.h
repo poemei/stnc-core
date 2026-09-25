@@ -30,6 +30,7 @@
 #define STNC_STNC_METHOD_SUBMIT_TRANSACTION 0x1005u
 #define STNC_STNC_METHOD_SUBMIT_BLOCK_EVIDENCE 0x1006u
 #define STNC_STNC_METHOD_SUBMIT_HISTORY_EVIDENCE 0x1007u
+#define STNC_STNC_METHOD_SUBMIT_SUFFIX_EVIDENCE 0x1008u
 #define STNC_STNC_BLOCK_HEADER_SIZE 168u
 #define STNC_STNC_BLOCK_MAX_SIZE 1070328u
 #define STNC_STNC_BLOCK_ACCEPTED_SIZE 80u
@@ -183,6 +184,11 @@ int stnc_stnc_encode_submit_history_evidence(
     uint8_t *buffer,
     size_t capacity,
     size_t *written
+);
+
+int stnc_stnc_encode_submit_suffix_evidence(
+    uint32_t prefix_count,const uint8_t *const *blocks,const size_t *block_lengths,
+    size_t block_count,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written
 );
 
 int stnc_stnc_decode_block_accepted(
