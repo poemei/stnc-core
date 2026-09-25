@@ -43,6 +43,10 @@
 #define STNC_STNC_METHOD_SUBMIT_SHARE 0x2004u
 #define STNC_STNC_MINING_CONTEXT_SIZE 76u
 #define STNC_STNC_MINING_TEMPLATE_PREFIX_SIZE 68u
+#define STNC_STNC_MINER_IDENTITY_SIZE 69u
+#define STNC_STNC_MINING_SUBMISSION_PREFIX_SIZE 137u
+#define STNC_STNC_MINING_NONCE_OFFSET 152u
+#define STNC_STNC_MINING_NONCE_SIZE 8u
 #define STNC_STNC_BLOCK_HEADER_SIZE 168u
 #define STNC_STNC_BLOCK_MAX_SIZE 1070328u
 #define STNC_STNC_BLOCK_ACCEPTED_SIZE 80u
@@ -141,6 +145,12 @@ int stnc_stnc_encode_empty_request(
 
 int stnc_stnc_encode_check_work_base(
     const uint8_t tip_id[32],uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written
+);
+
+int stnc_stnc_encode_submit_work(
+    const uint8_t parent_id[32],const uint8_t work_id[32],const char *miner_identity,
+    const uint8_t *block,size_t block_length,uint64_t request_id,
+    uint8_t *buffer,size_t capacity,size_t *written
 );
 
 int stnc_stnc_decode_mining_template(
