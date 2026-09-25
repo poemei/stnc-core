@@ -282,6 +282,20 @@ int stnc_stnc_encode_submit_transaction(
     return stnc_stnc_encode(&message,buffer,capacity,written);
 }
 
+int stnc_stnc_decode_pending(const uint8_t *payload,size_t length,stnc_pending_state *state)
+{
+    stnc_pending_state decoded;
+    if(payload==NULL||state==NULL||length!=STNC_STNC_PENDING_SIZE)return 1;
+    decoded.count=stnc_read_u32(payload);
+    decoded.max_entries=stnc_read_u32(payload+4);
+    decoded.bytes=stnc_read_u32(payload+8);
+    decoded.max_bytes=stnc_read_u32(payload+12);
+    if(decoded.max_entries==0u||decoded.max_bytes==0u||
+       decoded.count>decoded.max_entries||decoded.bytes>decoded.max_bytes)return 1;
+    *state=decoded;
+    return 0;
+}
+
 int stnc_stnc_decode_submission(const uint8_t *payload,size_t length,stnc_submission_result *result)
 {
     stnc_submission_result decoded;
