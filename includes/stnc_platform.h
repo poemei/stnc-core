@@ -48,6 +48,10 @@ int stnc_platform_https_get(
     size_t *length
 );
 
+int stnc_platform_random(unsigned char *buffer,size_t length);
+int stnc_platform_sha256(const unsigned char *buffer,size_t length,unsigned char digest[32]);
+void stnc_platform_secure_clear(void *buffer,size_t length);
+
 uint64_t stnc_platform_monotonic_ms(void);
 
 #endif
