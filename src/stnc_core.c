@@ -126,7 +126,10 @@ static int stnc_core_submit_peer_history(uint32_t peer_block_count)
         uint32_t index=prefix+(uint32_t)i;
         if(stnc_core_fetch_peer_block(index,NULL,&owned[i],&blocks[i],&lengths[i])!=0)goto done;
         if(total>STNC_HISTORY_EVIDENCE_MAX_BYTES-4u||
-           lengths[i]>STNC_HISTORY_EVIDENCE_MAX_BYTES-total-4u)goto done;
+           lengths[i]>STNC_HISTORY_EVIDENCE_MAX_BYTES-total-4u){
+            stnc_log_info("Selected Chain P2P divergent suffix exceeds one STNC evidence frame; peer retained pending staged recovery.");
+            rc=0;goto done;
+        }
         total+=4u+lengths[i];
     }
     {
