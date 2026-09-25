@@ -133,6 +133,25 @@ int stnc_stnc_encode_derive_address(
     return stnc_stnc_encode(&message, buffer, capacity, written);
 }
 
+int stnc_stnc_encode_address_query(
+    uint16_t method, const char *address, uint64_t request_id,
+    uint8_t *buffer, size_t capacity, size_t *written)
+{
+    stnc_stnc_message message;
+    const char *prefix;
+    if (written != NULL) *written = 0;
+    if (address == NULL ||
+        (method != STNC_STNC_METHOD_BALANCE && method != STNC_STNC_METHOD_CONTRACT_STATE) ||
+        strlen(address) != STNC_STNC_ADDRESS_TYPED_SIZE) return 1;
+    prefix = method == STNC_STNC_METHOD_BALANCE ? "stnw0_" : "stnc0_";
+    if (memcmp(address, prefix, 6u) != 0) return 1;
+    memset(&message, 0, sizeof(message));
+    message.kind = STNC_STNC_REQUEST; message.method = method; message.code = STNC_STNC_OK;
+    message.request_id = request_id; message.payload = (const uint8_t *)address;
+    message.length = STNC_STNC_ADDRESS_TYPED_SIZE;
+    return stnc_stnc_encode(&message, buffer, capacity, written);
+}
+
 int stnc_stnc_decode_header(
     const uint8_t *buffer,
     size_t length,
@@ -217,5 +236,31 @@ int stnc_stnc_decode_address(
 
     memcpy(address, payload, length);
     address[length] = '\0';
+    return 0;
+}
+
+int stnc_stnc_decode_balance(const uint8_t *payload, size_t length, uint64_t *units)
+{
+    if (payload == NULL || units == NULL || length != STNC_STNC_BALANCE_SIZE) return 1;
+    *units = stnc_read_u64(payload);
+    return 0;
+}
+
+int stnc_stnc_decode_contract_state(const uint8_t *payload, size_t length, stnc_contract_state *state)
+{
+    stnc_contract_state decoded;
+    if (payload == NULL || state == NULL || length != STNC_STNC_CONTRACT_STATE_SIZE) return 1;
+    memset(&decoded, 0, sizeof(decoded));
+    decoded.state = stnc_read_u16(payload);
+    decoded.type = stnc_read_u16(payload + 2);
+    decoded.sequence = stnc_read_u64(payload + 4);
+    decoded.created_at = stnc_read_u64(payload + 12);
+    decoded.participant_count = stnc_read_u16(payload + 20);
+    decoded.terms_length = stnc_read_u32(payload + 22);
+    if (decoded.state < STNC_STNC_CONTRACT_STATE_DRAFT || decoded.state > STNC_STNC_CONTRACT_STATE_CLOSED ||
+        decoded.type < STNC_STNC_CONTRACT_TYPE_GENERIC || decoded.type > STNC_STNC_CONTRACT_TYPE_SERVICE_AGREEMENT ||
+        decoded.participant_count > STNC_STNC_CONTRACT_MAX_PARTICIPANTS ||
+        decoded.terms_length > STNC_STNC_CONTRACT_MAX_TERMS) return 1;
+    *state = decoded;
     return 0;
 }
