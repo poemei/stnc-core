@@ -25,6 +25,18 @@
 #define STNC_STNC_METHOD_DERIVE_ADDRESS 9u
 #define STNC_STNC_METHOD_BALANCE 10u
 #define STNC_STNC_METHOD_CONTRACT_STATE 11u
+#define STNC_STNC_METHOD_SUBMIT_TRANSACTION 0x1005u
+#define STNC_STNC_SUBMISSION_RESPONSE_SIZE 36u
+#define STNC_STNC_TRANSACTION_MAX 66881u
+#define STNC_STNC_SUBMISSION_ADMITTED 0u
+#define STNC_STNC_SUBMISSION_DUPLICATE 1u
+#define STNC_STNC_SUBMISSION_POOL_FULL 2u
+#define STNC_STNC_SUBMISSION_BAD 3u
+#define STNC_STNC_SUBMISSION_UNSUPPORTED 4u
+#define STNC_STNC_SUBMISSION_REPLAY 5u
+#define STNC_STNC_SUBMISSION_UNAUTHORIZED 6u
+#define STNC_STNC_SUBMISSION_UNAVAILABLE 7u
+#define STNC_STNC_SUBMISSION_INTERNAL 8u
 
 #define STNC_STNC_BALANCE_SIZE 8u
 #define STNC_STNC_CONTRACT_STATE_SIZE 26u
@@ -56,6 +68,12 @@ typedef struct stnc_contract_state {
     uint16_t participant_count;
     uint32_t terms_length;
 } stnc_contract_state;
+
+typedef struct stnc_submission_result {
+    uint16_t result;
+    uint8_t transaction_id[32];
+    int has_transaction_id;
+} stnc_submission_result;
 
 typedef struct stnc_chain_info {
     uint8_t network_id[32];
@@ -118,6 +136,21 @@ int stnc_stnc_decode_balance(
     const uint8_t *payload,
     size_t length,
     uint64_t *units
+);
+
+int stnc_stnc_encode_submit_transaction(
+    const uint8_t *transaction,
+    size_t transaction_length,
+    uint64_t request_id,
+    uint8_t *buffer,
+    size_t capacity,
+    size_t *written
+);
+
+int stnc_stnc_decode_submission(
+    const uint8_t *payload,
+    size_t length,
+    stnc_submission_result *result
 );
 
 int stnc_stnc_decode_contract_state(
