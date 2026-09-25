@@ -33,6 +33,7 @@ static void stnc_command_print_usage(void)
         "  stnc-core mining status\n"
         "  stnc-core mining template\n"
         "  stnc-core mining check\n"
+        "  stnc-core mining scan <attempts>\n"
         "  stnc-core mining mine-once <attempts>\n"
         "  stnc-core help\n"
     );
@@ -157,7 +158,8 @@ static int stnc_command_mining(int argc,char **argv)
 {
     size_t i;
     if(argc!=3&&argc!=4){stnc_command_print_usage();return 1;}
-    if(strcmp(argv[2],"mine-once")==0){
+    if(strcmp(argv[2],"mine-once")==0||strcmp(argv[2],"scan")==0){
+        int submit_solution=strcmp(argv[2],"mine-once")==0;
         uint8_t *payload=NULL,block[STNC_STNC_BLOCK_HEADER_SIZE],digest[32],accepted_id[32],accepted_work[40];
         size_t payload_length=0u;stnc_mining_template work;stnc_mining_context checked;
         uint64_t attempts=0u,nonce=0u,height=0u;size_t j;stnc_wallet_key key;char address[STNC_STNC_ADDRESS_IDENTITY_SIZE+1u];
@@ -205,6 +207,12 @@ static int stnc_command_mining(int argc,char **argv)
                !stnc_mining_hash_meets_target(verified_digest,block+120u)){
                 stnc_core_mining_template_release(payload);fprintf(stderr,"Mining solution verification failed.\n");return 1;
             }}
+            if(!submit_solution){
+                printf("Mining scan found valid work\n  Nonce: %" PRIu64 "\n  Hash: ",nonce);
+                for(j=0u;j<32u;j++)printf("%02x",(unsigned int)digest[j]);
+                printf("\n");
+                stnc_core_mining_template_release(payload);return 0;
+            }
             {stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
             if(base!=STNC_CORE_WORK_BASE_CURRENT){stnc_core_mining_template_release(payload);
                 fprintf(stderr,base==STNC_CORE_WORK_BASE_STALE?"Solved mining work became stale.\n":"Solved mining work recheck failed.\n");return 1;}
