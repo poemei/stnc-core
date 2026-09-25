@@ -34,6 +34,7 @@ cl /nologo /W4 /TC /Iincludes ^
     src\stnc_log.c ^
     src\stnc_config.c ^
     src\stnc_network.c ^
+    src\stnc_peers.c ^
     src\stnc_stnc.c ^
     src\stnc_stnp.c ^
     platforms\windows\platform_windows.c ^
@@ -57,6 +58,20 @@ build\test-stnc-stnp.exe
 if errorlevel 1 (
     echo.
     echo TEST FAILED
+    exit /b 1
+)
+
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_peers.c src\stnc_peers.c /Fe:build\test-stnc-peers.exe
+if errorlevel 1 (
+    echo.
+    echo PEER TEST BUILD FAILED
+    exit /b 1
+)
+
+build\test-stnc-peers.exe
+if errorlevel 1 (
+    echo.
+    echo PEER TEST FAILED
     exit /b 1
 )
 
