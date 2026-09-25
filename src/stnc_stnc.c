@@ -106,6 +106,18 @@ int stnc_stnc_encode_empty_request(
     return stnc_stnc_encode(&message,buffer,capacity,written);
 }
 
+int stnc_stnc_encode_check_work_base(
+    const uint8_t tip_id[32],uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written)
+{
+    stnc_stnc_message message;
+    if(written!=NULL)*written=0;
+    if(tip_id==NULL)return 1;
+    memset(&message,0,sizeof(message));message.kind=STNC_STNC_REQUEST;
+    message.method=STNC_STNC_METHOD_CHECK_WORK_BASE;message.code=STNC_STNC_OK;
+    message.request_id=request_id;message.payload=tip_id;message.length=32u;
+    return stnc_stnc_encode(&message,buffer,capacity,written);
+}
+
 int stnc_stnc_decode_mining_template(
     const uint8_t *payload,size_t length,stnc_mining_template *work)
 {
