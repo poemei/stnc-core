@@ -19,6 +19,9 @@ static int initialized;
 static uint64_t next_tick_ms;
 static stnc_stratum_client stratum;
 static uint8_t block[STNC_BACKGROUND_MINING_BLOCK_CAPACITY];
+static stnc_stratum_job active_job;
+static int have_job;
+static uint64_t next_nonce;
 
 static stnc_mining_backend configured_backend(const char *name)
 {
@@ -47,7 +50,7 @@ int stnc_background_mining_init(void)
     mining.enabled=config->mining_enabled;mining.backend=configured_backend(config->mining_backend);
     mining.cpu_limit_percent=config->mining_cpu_limit_percent;
     if(stnc_mining_service_configure(&mining)!=0)return 1;
-    initialized=1;next_tick_ms=0u;return 0;
+    initialized=1;next_tick_ms=0u;have_job=0;next_nonce=0u;memset(&active_job,0,sizeof(active_job));return 0;
 }
 
 void stnc_background_mining_tick(void)
@@ -78,30 +81,38 @@ void stnc_background_mining_tick(void)
 
     memset(&job,0,sizeof(job));
     poll_result=stnc_stratum_client_poll_job(&stratum,&job,block,sizeof(block));
-    if(poll_result==1)return;
-    if(poll_result!=0){
-        stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
+    if(poll_result<0){
+        stnc_stratum_client_disconnect(&stratum);have_job=0;
+        stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
     }
-    if(job.block_length!=STNC_STNM_BLOCK_HEADER_SIZE){
-        stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
+    if(poll_result==0){
+        if(job.block_length!=STNC_STNM_BLOCK_HEADER_SIZE){
+            stnc_stratum_client_disconnect(&stratum);have_job=0;
+            stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
+        }
+        active_job=job;next_nonce=job.initial_nonce;have_job=1;
     }
+    if(!have_job)return;
 
     if(!status.running||status.active_backend!=STNC_MINING_BACKEND_CPU)
         stnc_log_info("Background mining active through STN-Stratum: backend=cpu.");
     stnc_mining_service_set_running(1,STNC_MINING_BACKEND_CPU);
     start_ms=stnc_platform_monotonic_ms();
-    result=stnc_mining_search_timed(block,job.initial_nonce,stnc_mining_service_cpu_work_ms(),
+    result=stnc_mining_search_timed(block,next_nonce,stnc_mining_service_cpu_work_ms(),
         &attempts,&found_nonce,digest);
     elapsed_ms=stnc_platform_monotonic_ms()-start_ms;
     stnc_mining_service_record_pass(attempts,result==STNC_MINING_FOUND);
-    if(attempts>0u&&elapsed_ms>0u)(void)stnc_stratum_client_progress(&stratum,job.work_id,attempts,elapsed_ms);
+    if(attempts>0u&&elapsed_ms>0u)(void)stnc_stratum_client_progress(&stratum,active_job.work_id,attempts,elapsed_ms);
 
     if(result==STNC_MINING_FOUND){
         stnc_log_info("Background mining found candidate work; submitting through STN-Stratum.");
-        if(stnc_stratum_client_submit(&stratum,job.work_id,found_nonce,&submit_result)!=0){
+        if(stnc_stratum_client_submit(&stratum,active_job.work_id,found_nonce,&submit_result)!=0)
             stnc_stratum_client_disconnect(&stratum);
-        }
-    }else if(result!=STNC_MINING_EXHAUSTED){
+        have_job=0;
+    }else if(result==STNC_MINING_EXHAUSTED){
+        if(attempts>UINT64_MAX-next_nonce)have_job=0;
+        else next_nonce+=attempts;
+    }else{
         stnc_stratum_client_disconnect(&stratum);
         stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
     }
@@ -111,7 +122,8 @@ void stnc_background_mining_shutdown(void)
 {
     if(!initialized)return;
     stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
-    stnc_mining_service_reset();initialized=0;next_tick_ms=0u;memset(block,0,sizeof(block));
+    stnc_mining_service_reset();initialized=0;next_tick_ms=0u;have_job=0;next_nonce=0u;
+    memset(&active_job,0,sizeof(active_job));memset(block,0,sizeof(block));
 }
 
 void stnc_background_mining_status(stnc_mining_service_status *status)
