@@ -5,6 +5,8 @@
 #include "stnc_command.h"
 #include "stnc_core.h"
 #include "stnc_stnc.h"
+#include "stnc_wallet.h"
+#include "stnc_wallet_store.h"
 
 static void stnc_command_print_usage(void)
 {
@@ -16,6 +18,9 @@ static void stnc_command_print_usage(void)
         "  stnc-core address contract <source>\n"
         "  stnc-core address wallet <source>\n"
         "  stnc-core balance <stnw0_...>\n"
+        "  stnc-core wallet create\n"
+        "  stnc-core wallet show\n"
+        "  stnc-core wallet balance\n"
         "  stnc-core contract state <stnc0_...>\n"
         "  stnc-core help\n"
     );
@@ -106,6 +111,26 @@ static int stnc_command_contract(int argc, char **argv)
     return 0;
 }
 
+
+static int stnc_command_wallet(int argc,char **argv)
+{
+    stnc_wallet_key key;char address[STNC_WALLET_ADDRESS_SIZE+1u];uint64_t units;
+    memset(&key,0,sizeof(key));
+    if(argc!=3){stnc_command_print_usage();return 1;}
+    if(strcmp(argv[2],"create")==0){
+        if(stnc_wallet_store_exists()){fprintf(stderr,"Wallet already exists.\n");return 1;}
+        if(stnc_wallet_store_create(&key)!=0||stnc_wallet_address(&key,address)!=0){stnc_wallet_clear(&key);fprintf(stderr,"Wallet creation failed.\n");return 1;}
+        printf("%s\n",address);stnc_wallet_clear(&key);return 0;
+    }
+    if(strcmp(argv[2],"show")==0||strcmp(argv[2],"balance")==0){
+        if(stnc_wallet_store_load(&key)!=0||stnc_wallet_address(&key,address)!=0){stnc_wallet_clear(&key);fprintf(stderr,"Wallet is unavailable.\n");return 1;}
+        if(strcmp(argv[2],"show")==0){printf("%s\n",address);stnc_wallet_clear(&key);return 0;}
+        if(stnc_core_balance(address,&units)!=0){stnc_wallet_clear(&key);fprintf(stderr,"Wallet balance query failed.\n");return 1;}
+        printf("%" PRIu64 "\n",units);stnc_wallet_clear(&key);return 0;
+    }
+    stnc_wallet_clear(&key);stnc_command_print_usage();return 1;
+}
+
 int stnc_command_run(int argc, char **argv)
 {
     if (argc < 2 || argv == NULL) {
@@ -125,6 +150,7 @@ int stnc_command_run(int argc, char **argv)
     }
 
     if (strcmp(argv[1], "balance") == 0) return stnc_command_balance(argc, argv);
+    if (strcmp(argv[1], "wallet") == 0) return stnc_command_wallet(argc, argv);
     if (strcmp(argv[1], "contract") == 0) return stnc_command_contract(argc, argv);
 
     if (strcmp(argv[1], "help") == 0 ||
