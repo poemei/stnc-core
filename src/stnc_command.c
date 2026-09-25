@@ -199,6 +199,13 @@ static int stnc_command_mining(int argc,char **argv)
         }
         switch(stnc_mining_search(block,first_nonce,attempts,&nonce,digest)){
         case STNC_MINING_FOUND:
+            {uint64_t encoded_nonce=0u;
+            for(j=0u;j<STNC_STNC_MINING_NONCE_SIZE;j++)
+                encoded_nonce=(encoded_nonce<<8)|block[STNC_STNC_MINING_NONCE_OFFSET+j];
+            if(encoded_nonce!=nonce){
+                stnc_core_mining_template_release(payload);
+                fprintf(stderr,"Mining worker nonce output does not match candidate block.\n");return 1;
+            }}
             if(!stnc_mining_hash_meets_target(digest,block+120u)){
                 stnc_core_mining_template_release(payload);fprintf(stderr,"Mining worker returned an invalid solution.\n");return 1;
             }
