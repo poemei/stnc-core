@@ -17,6 +17,8 @@
 
 #define STNC_INFO_REQUEST_ID UINT64_C(1)
 #define STNC_DERIVE_ADDRESS_REQUEST_ID UINT64_C(2)
+#define STNC_BALANCE_REQUEST_ID UINT64_C(3)
+#define STNC_CONTRACT_STATE_REQUEST_ID UINT64_C(4)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
@@ -1290,6 +1292,43 @@ int stnc_core_derive_address(
     }
 
     return 0;
+}
+
+
+static int stnc_core_address_query(uint16_t method, const char *address, uint64_t request_id,
+    uint8_t *payload, size_t payload_capacity, size_t expected_length)
+{
+    uint8_t request[STNC_STNC_HEADER_SIZE + STNC_STNC_ADDRESS_TYPED_SIZE];
+    uint8_t response_header[STNC_STNC_HEADER_SIZE];
+    stnc_stnc_message response;
+    size_t written;
+    if (core_state == STNC_CORE_STATE_UNINITIALIZED || core_state == STNC_CORE_STATE_STOPPED ||
+        !stnc_network_is_connected(&chain_connection) || address == NULL || payload == NULL ||
+        payload_capacity < expected_length) return 1;
+    if (stnc_stnc_encode_address_query(method,address,request_id,request,sizeof(request),&written) != 0 ||
+        stnc_network_send(&chain_connection,request,written) != 0 ||
+        stnc_network_receive(&chain_connection,response_header,sizeof(response_header)) != 0 ||
+        stnc_stnc_decode_header(response_header,sizeof(response_header),&response) != 0 ||
+        response.method != method || response.request_id != request_id || response.code != STNC_STNC_OK ||
+        response.length != expected_length ||
+        stnc_network_receive(&chain_connection,payload,expected_length) != 0) return 1;
+    return 0;
+}
+
+int stnc_core_balance(const char *wallet, uint64_t *units)
+{
+    uint8_t payload[STNC_STNC_BALANCE_SIZE];
+    if (units == NULL || stnc_core_address_query(STNC_STNC_METHOD_BALANCE,wallet,STNC_BALANCE_REQUEST_ID,
+        payload,sizeof(payload),sizeof(payload)) != 0) return 1;
+    return stnc_stnc_decode_balance(payload,sizeof(payload),units);
+}
+
+int stnc_core_contract_state(const char *contract, stnc_contract_state *state)
+{
+    uint8_t payload[STNC_STNC_CONTRACT_STATE_SIZE];
+    if (state == NULL || stnc_core_address_query(STNC_STNC_METHOD_CONTRACT_STATE,contract,STNC_CONTRACT_STATE_REQUEST_ID,
+        payload,sizeof(payload),sizeof(payload)) != 0) return 1;
+    return stnc_stnc_decode_contract_state(payload,sizeof(payload),state);
 }
 
 int stnc_core_run(void)
