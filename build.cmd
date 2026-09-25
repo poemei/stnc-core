@@ -123,6 +123,18 @@ if errorlevel 1 (
     exit /b 1
 )
 
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_stnc.c src\stnc_stnc.c /Fe:build\test-stnc-stnc.exe
+if errorlevel 1 (
+    echo.
+    echo STNC CODEC TEST BUILD FAILED
+    exit /b 1
+)
+build\test-stnc-stnc.exe
+if errorlevel 1 (
+    echo.
+    echo STNC CODEC TEST FAILED
+    exit /b 1
+)
 
 echo.
 echo BUILD SUCCESSFUL
