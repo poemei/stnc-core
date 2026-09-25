@@ -21,6 +21,7 @@
 #define STNC_CONTRACT_STATE_REQUEST_ID UINT64_C(4)
 #define STNC_SUBMIT_TRANSACTION_REQUEST_ID UINT64_C(5)
 #define STNC_PENDING_REQUEST_ID UINT64_C(6)
+#define STNC_BLOCK_EVIDENCE_REQUEST_ID UINT64_C(7)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
@@ -739,9 +740,15 @@ static int stnc_core_probe_selected_peer_headers(
         return 1;
     }
     stnc_log_info(message);
-    free(block_frame);
 
-    stnc_log_info("Selected Chain P2P block evidence remains unaccepted pending Chain validation.");
+    if(stnc_core_submit_block_evidence(block_bytes,block_length)!=0){
+        free(block_frame);
+        stnc_log_error("Selected Chain P2P block evidence was not accepted by Chain.");
+        return 1;
+    }
+
+    free(block_frame);
+    stnc_log_info("Selected Chain P2P block evidence accepted by Chain.");
     return 0;
 }
 
@@ -1353,6 +1360,47 @@ int stnc_core_pending(stnc_pending_state *state)
        response.code!=STNC_STNC_OK||response.length!=sizeof(payload)||
        stnc_network_receive(&chain_connection,payload,sizeof(payload))!=0)return 1;
     return stnc_stnc_decode_pending(payload,sizeof(payload),state);
+}
+
+int stnc_core_submit_block_evidence(const uint8_t *block,size_t block_length)
+{
+    uint8_t *request;
+    uint8_t response_header[STNC_STNC_HEADER_SIZE];
+    uint8_t payload[STNC_STNC_BLOCK_ACCEPTED_SIZE];
+    uint8_t tip_id[32],work[40];
+    uint64_t height;
+    stnc_stnc_message response;
+    size_t capacity,written;
+    int rc=1;
+
+    if(core_state==STNC_CORE_STATE_UNINITIALIZED||core_state==STNC_CORE_STATE_STOPPED||
+       !stnc_network_is_connected(&chain_connection)||block==NULL||
+       block_length<STNC_STNC_BLOCK_HEADER_SIZE||block_length>STNC_STNC_BLOCK_MAX_SIZE)return 1;
+
+    capacity=STNC_STNC_HEADER_SIZE+block_length;
+    request=(uint8_t *)malloc(capacity);
+    if(request==NULL)return 1;
+
+    if(stnc_stnc_encode_submit_block_evidence(block,block_length,STNC_BLOCK_EVIDENCE_REQUEST_ID,
+            request,capacity,&written)==0 &&
+       stnc_network_send(&chain_connection,request,written)==0 &&
+       stnc_network_receive(&chain_connection,response_header,sizeof(response_header))==0 &&
+       stnc_stnc_decode_header(response_header,sizeof(response_header),&response)==0 &&
+       response.method==STNC_STNC_METHOD_SUBMIT_BLOCK_EVIDENCE &&
+       response.request_id==STNC_BLOCK_EVIDENCE_REQUEST_ID &&
+       response.code==STNC_STNC_OK &&
+       response.length==sizeof(payload) &&
+       stnc_network_receive(&chain_connection,payload,sizeof(payload))==0 &&
+       stnc_stnc_decode_block_accepted(payload,sizeof(payload),tip_id,&height,work)==0){
+        memcpy(chain_state.tip_id,tip_id,sizeof(tip_id));
+        chain_state.height=height;
+        memcpy(chain_state.cumulative_work,work,sizeof(work));
+        chain_state.block_count=height<UINT32_MAX ? (uint32_t)(height+1u) : UINT32_MAX;
+        chain_state.available=1;
+        rc=0;
+    }
+    free(request);
+    return rc;
 }
 
 int stnc_core_submit_transaction(const uint8_t *transaction,size_t transaction_length,stnc_submission_result *result)
