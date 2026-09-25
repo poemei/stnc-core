@@ -128,9 +128,10 @@ int main(void)
     sha_partial_fail=0;
 
     memset(block,0,sizeof(block));memset(block+120u,0u,32u);
-    monotonic_value=100u;monotonic_step=5u;sha_calls=0u;attempts=UINT64_MAX;nonce=UINT64_MAX;
+    monotonic_value=100u;monotonic_step=5u;sha_nonzero=1;sha_calls=0u;attempts=UINT64_MAX;nonce=UINT64_MAX;
     if(stnc_mining_search_timed(block,7u,20u,&attempts,&nonce,digest)!=STNC_MINING_EXHAUSTED||
        attempts!=4u||sha_calls!=4u||nonce!=0u)return TEST_FAIL();
+    sha_nonzero=0;
     memset(block+120u,0xff,32u);
     monotonic_value=0u;monotonic_step=1u;attempts=0u;nonce=0u;
     if(stnc_mining_search_timed(block,9u,20u,&attempts,&nonce,digest)!=STNC_MINING_FOUND||
