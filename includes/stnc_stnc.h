@@ -20,6 +20,7 @@
 #define STNC_STNC_RESPONSE 2u
 
 #define STNC_STNC_OK 0u
+#define STNC_STNC_STALE 10u
 #define STNC_STNC_CURRENT 13u
 
 #define STNC_STNC_METHOD_INFO 1u
