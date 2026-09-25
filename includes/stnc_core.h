@@ -1,6 +1,7 @@
 #ifndef STNC_CORE_H
 #define STNC_CORE_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 typedef enum stnc_core_state {
@@ -32,5 +33,13 @@ stnc_core_state stnc_core_get_state(void);
 
 const stnc_core_chain_state *
 stnc_core_get_chain_state(void);
+
+int stnc_core_derive_address(
+    uint16_t type,
+    const uint8_t *source,
+    size_t source_length,
+    char *address,
+    size_t capacity
+);
 
 #endif
