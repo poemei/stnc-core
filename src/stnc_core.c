@@ -248,14 +248,27 @@ static int stnc_core_qualify_candidate(
     size_t written;
     uint64_t started;
     uint64_t finished;
+    char message[512];
 
     if (candidate == NULL || qualified == NULL || !chain_state.available) {
+        stnc_log_error("Chain P2P candidate qualification prerequisites are unavailable.");
         return 1;
     }
 
     memset(&connection, 0, sizeof(connection));
     memset(&hello, 0, sizeof(hello));
     memset(qualified, 0, sizeof(*qualified));
+
+    if (snprintf(
+            message,
+            sizeof(message),
+            "Qualifying Chain P2P candidate: %s:%u",
+            candidate->host,
+            (unsigned int)candidate->port
+        ) < 0) {
+        return 1;
+    }
+    stnc_log_info(message);
 
     started = stnc_platform_monotonic_ms();
 
@@ -264,8 +277,10 @@ static int stnc_core_qualify_candidate(
             candidate->host,
             candidate->port
         ) != 0) {
+        stnc_log_error("Chain P2P candidate CONNECT failed.");
         return 1;
     }
+    stnc_log_info("Chain P2P candidate CONNECT passed.");
 
     if (stnc_stnp_encode_hello(
             chain_state.network_id,
@@ -275,16 +290,62 @@ static int stnc_core_qualify_candidate(
             sizeof(request),
             &written
         ) != 0 ||
-        written != sizeof(request) ||
-        stnc_network_send(&connection, request, written) != 0 ||
-        stnc_network_receive(&connection, response, sizeof(response)) != 0 ||
-        stnc_stnp_decode_hello(response, sizeof(response), &hello) != 0 ||
-        memcmp(hello.network_id, chain_state.network_id, 32) != 0 ||
-        memcmp(hello.genesis_id, chain_state.genesis_id, 32) != 0 ||
-        (hello.capabilities != 1u && hello.capabilities != 3u)) {
+        written != sizeof(request)) {
+        stnc_log_error("Chain P2P candidate HELLO ENCODE failed.");
         stnc_network_disconnect(&connection);
         return 1;
     }
+    stnc_log_info("Chain P2P candidate HELLO ENCODE passed: 80 bytes.");
+
+    if (stnc_network_send(&connection, request, written) != 0) {
+        stnc_log_error("Chain P2P candidate HELLO SEND failed.");
+        stnc_network_disconnect(&connection);
+        return 1;
+    }
+    stnc_log_info("Chain P2P candidate HELLO SEND passed: 80 bytes.");
+
+    if (stnc_network_receive(
+            &connection,
+            response,
+            sizeof(response)
+        ) != 0) {
+        stnc_log_error("Chain P2P candidate HELLO RECEIVE failed.");
+        stnc_network_disconnect(&connection);
+        return 1;
+    }
+    stnc_log_info("Chain P2P candidate HELLO RECEIVE passed: 80 bytes.");
+
+    if (stnc_stnp_decode_hello(
+            response,
+            sizeof(response),
+            &hello
+        ) != 0) {
+        stnc_log_error("Chain P2P candidate HELLO DECODE failed.");
+        stnc_network_disconnect(&connection);
+        return 1;
+    }
+    stnc_log_info("Chain P2P candidate HELLO DECODE passed.");
+
+    if (memcmp(hello.network_id, chain_state.network_id, 32) != 0) {
+        stnc_log_error("Chain P2P candidate NETWORK ID validation failed.");
+        stnc_network_disconnect(&connection);
+        return 1;
+    }
+    stnc_log_info("Chain P2P candidate NETWORK ID validation passed.");
+
+    if (memcmp(hello.genesis_id, chain_state.genesis_id, 32) != 0) {
+        stnc_log_error("Chain P2P candidate GENESIS ID validation failed.");
+        stnc_network_disconnect(&connection);
+        return 1;
+    }
+    stnc_log_info("Chain P2P candidate GENESIS ID validation passed.");
+
+    if (hello.capabilities != 1u && hello.capabilities != 3u) {
+        stnc_log_error("Chain P2P candidate CAPABILITIES validation failed.");
+        stnc_network_disconnect(&connection);
+        return 1;
+    }
+    stnc_log_info("Chain P2P candidate CAPABILITIES validation passed.");
 
     finished = stnc_platform_monotonic_ms();
     stnc_network_disconnect(&connection);
