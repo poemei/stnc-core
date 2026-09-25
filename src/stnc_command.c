@@ -162,6 +162,16 @@ static int stnc_command_mining(int argc,char **argv)
         for(i=0u;i<sizeof(context.target);i++)printf("%02x",(unsigned int)context.target[i]);
         printf("\n");return 0;
     }
+    if(strcmp(argv[2],"check")==0){
+        stnc_mining_context current,checked;
+        if(stnc_core_mining_context(&current)!=0||
+           stnc_core_check_work_base(current.tip_id,&checked)!=0){
+            fprintf(stderr,"Mining work base is stale or unavailable.\n");return 1;
+        }
+        printf("Mining work base\n  Status: current\n  Height: %" PRIu64 "\n  Template: %s\n",
+            checked.height,checked.template_available?"available":"unavailable");
+        return 0;
+    }
     if(strcmp(argv[2],"template")==0){
         uint8_t *payload=NULL;size_t payload_length=0u;stnc_mining_template work;
         if(stnc_core_mining_template(&payload,&payload_length,&work)!=0){
