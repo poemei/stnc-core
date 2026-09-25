@@ -264,3 +264,40 @@ int stnc_stnc_decode_contract_state(const uint8_t *payload, size_t length, stnc_
     *state = decoded;
     return 0;
 }
+
+int stnc_stnc_encode_submit_transaction(
+    const uint8_t *transaction,size_t transaction_length,uint64_t request_id,
+    uint8_t *buffer,size_t capacity,size_t *written)
+{
+    stnc_stnc_message message;
+    if(written!=NULL)*written=0;
+    if(transaction==NULL||transaction_length<12u||transaction_length>STNC_STNC_TRANSACTION_MAX)return 1;
+    memset(&message,0,sizeof(message));
+    message.kind=STNC_STNC_REQUEST;
+    message.method=STNC_STNC_METHOD_SUBMIT_TRANSACTION;
+    message.code=STNC_STNC_OK;
+    message.request_id=request_id;
+    message.payload=transaction;
+    message.length=transaction_length;
+    return stnc_stnc_encode(&message,buffer,capacity,written);
+}
+
+int stnc_stnc_decode_submission(const uint8_t *payload,size_t length,stnc_submission_result *result)
+{
+    stnc_submission_result decoded;
+    uint16_t version;
+    if(payload==NULL||result==NULL||length!=STNC_STNC_SUBMISSION_RESPONSE_SIZE)return 1;
+    version=stnc_read_u16(payload);
+    memset(&decoded,0,sizeof(decoded));
+    decoded.result=stnc_read_u16(payload+2);
+    if(version!=1u||decoded.result>STNC_STNC_SUBMISSION_INTERNAL)return 1;
+    if(decoded.result==STNC_STNC_SUBMISSION_ADMITTED||decoded.result==STNC_STNC_SUBMISSION_DUPLICATE){
+        memcpy(decoded.transaction_id,payload+4,32u);
+        decoded.has_transaction_id=1;
+    }else{
+        size_t i;
+        for(i=4u;i<STNC_STNC_SUBMISSION_RESPONSE_SIZE;i++)if(payload[i]!=0u)return 1;
+    }
+    *result=decoded;
+    return 0;
+}
