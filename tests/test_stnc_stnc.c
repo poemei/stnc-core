@@ -203,6 +203,22 @@ static int check_staged_suffix(void)
     return 0;
 }
 
+static int check_mining_template(void)
+{
+    uint8_t payload[STNC_STNC_MINING_TEMPLATE_PREFIX_SIZE+STNC_STNC_BLOCK_HEADER_SIZE]={0};
+    stnc_mining_template work;size_t i;
+    for(i=0u;i<32u;i++){payload[i]=(uint8_t)i;payload[32u+i]=(uint8_t)(0xa0u+i);}
+    stnc_stnc_write_u32(payload+64u,STNC_STNC_BLOCK_HEADER_SIZE);
+    if(stnc_stnc_decode_mining_template(payload,sizeof(payload),&work)!=0||
+       work.block_length!=STNC_STNC_BLOCK_HEADER_SIZE||
+       work.block!=payload+STNC_STNC_MINING_TEMPLATE_PREFIX_SIZE||
+       memcmp(work.parent_id,payload,32u)!=0||memcmp(work.work_id,payload+32u,32u)!=0)return 1;
+    stnc_stnc_write_u32(payload+64u,STNC_STNC_BLOCK_HEADER_SIZE+1u);
+    if(stnc_stnc_decode_mining_template(payload,sizeof(payload),&work)==0)return 1;
+    if(stnc_stnc_decode_mining_template(payload,STNC_STNC_MINING_TEMPLATE_PREFIX_SIZE-1u,&work)==0)return 1;
+    return 0;
+}
+
 static int check_mining_context(void)
 {
     uint8_t frame[STNC_STNC_HEADER_SIZE],payload[STNC_STNC_MINING_CONTEXT_SIZE]={0};
@@ -246,7 +262,7 @@ int main(void)
         return 1;
     }
 
-    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0 || check_block_evidence() != 0 || check_history_evidence() != 0 || check_suffix_evidence() != 0 || check_staged_suffix() != 0 || check_mining_context() != 0) {
+    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0 || check_block_evidence() != 0 || check_history_evidence() != 0 || check_suffix_evidence() != 0 || check_staged_suffix() != 0 || check_mining_context() != 0 || check_mining_template() != 0) {
         return 1;
     }
 
