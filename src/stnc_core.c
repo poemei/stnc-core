@@ -30,6 +30,8 @@
 #define STNC_P2P_REFRESH_INTERVAL_MS 5000u
 #define STNC_DIRECTORY_HOST "stn-chain.org"
 #define STNC_DIRECTORY_PATH "/peers?format=json"
+#define STNC_HISTORY_EVIDENCE_MAX_BLOCKS 4096u
+#define STNC_HISTORY_EVIDENCE_MAX_BYTES (64u * 1024u * 1024u)
 
 static stnc_core_state core_state = STNC_CORE_STATE_UNINITIALIZED;
 static stnc_network_connection chain_connection;
@@ -75,15 +77,27 @@ static int stnc_core_submit_peer_history(uint32_t peer_block_count)
     size_t i;
     int rc=1;
 
-    if(peer_block_count==0u)return 1;
+    if(peer_block_count==0u||peer_block_count>STNC_HISTORY_EVIDENCE_MAX_BLOCKS){
+        stnc_log_error("Selected Chain P2P competing history exceeds the bounded recovery block limit.");
+        return 1;
+    }
     owned=(uint8_t **)calloc(peer_block_count,sizeof(*owned));
     blocks=(const uint8_t **)calloc(peer_block_count,sizeof(*blocks));
     lengths=(size_t *)calloc(peer_block_count,sizeof(*lengths));
     if(owned==NULL||blocks==NULL||lengths==NULL)goto done;
 
-    for(i=0u;i<(size_t)peer_block_count;i++){
-        if(stnc_core_fetch_peer_block((uint32_t)i,NULL,&owned[i],&blocks[i],&lengths[i])!=0){
-            stnc_log_error("Selected Chain P2P competing history retrieval failed.");goto done;
+    {
+        size_t total=4u;
+        for(i=0u;i<(size_t)peer_block_count;i++){
+            if(stnc_core_fetch_peer_block((uint32_t)i,NULL,&owned[i],&blocks[i],&lengths[i])!=0){
+                stnc_log_error("Selected Chain P2P competing history retrieval failed.");goto done;
+            }
+            if(total>STNC_HISTORY_EVIDENCE_MAX_BYTES-4u||
+               lengths[i]>STNC_HISTORY_EVIDENCE_MAX_BYTES-total-4u){
+                stnc_log_error("Selected Chain P2P competing history exceeds the bounded recovery byte limit.");
+                goto done;
+            }
+            total+=4u+lengths[i];
         }
     }
     if(stnc_core_submit_history_evidence(blocks,lengths,peer_block_count)!=0){
@@ -1024,6 +1038,7 @@ static int stnc_core_refresh_selected_peer(void)
     if (stnc_core_probe_selected_peer_headers(&state) != 0) {
         stnc_log_error("Selected Chain P2P peer runtime evidence probe failed.");
         stnc_network_disconnect(&p2p_connection);
+        memset(&peer_status,0,sizeof(peer_status));
         return 1;
     }
 
