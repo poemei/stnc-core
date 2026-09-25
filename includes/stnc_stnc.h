@@ -36,6 +36,12 @@
 #define STNC_STNC_METHOD_SUFFIX_STAGE_APPEND 0x100au
 #define STNC_STNC_METHOD_SUFFIX_STAGE_COMMIT 0x100bu
 #define STNC_STNC_METHOD_SUFFIX_STAGE_ABORT 0x100cu
+#define STNC_STNC_METHOD_MINING_CONTEXT 0x2000u
+#define STNC_STNC_METHOD_CHECK_WORK_BASE 0x2001u
+#define STNC_STNC_METHOD_MINING_TEMPLATE 0x2002u
+#define STNC_STNC_METHOD_SUBMIT_WORK 0x2003u
+#define STNC_STNC_METHOD_SUBMIT_SHARE 0x2004u
+#define STNC_STNC_MINING_CONTEXT_SIZE 76u
 #define STNC_STNC_BLOCK_HEADER_SIZE 168u
 #define STNC_STNC_BLOCK_MAX_SIZE 1070328u
 #define STNC_STNC_BLOCK_ACCEPTED_SIZE 80u
@@ -96,6 +102,13 @@ typedef struct stnc_submission_result {
     int has_transaction_id;
 } stnc_submission_result;
 
+typedef struct stnc_mining_context {
+    uint8_t tip_id[32];
+    uint8_t target[32];
+    uint64_t height;
+    uint32_t template_available;
+} stnc_mining_context;
+
 typedef struct stnc_chain_info {
     uint8_t network_id[32];
     uint8_t genesis_id[32];
@@ -112,6 +125,14 @@ int stnc_stnc_encode(
     uint8_t *buffer,
     size_t capacity,
     size_t *written
+);
+
+int stnc_stnc_encode_empty_request(
+    uint16_t method,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written
+);
+
+int stnc_stnc_decode_mining_context(
+    const uint8_t *payload,size_t length,stnc_mining_context *context
 );
 
 int stnc_stnc_encode_block_height(
