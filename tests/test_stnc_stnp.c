@@ -36,6 +36,8 @@ int main(void)
     unsigned char hello_frame[STNC_STNP_HEADER_SIZE + STNC_STNP_HELLO_SIZE];
     unsigned char state_request[STNC_STNP_HEADER_SIZE];
     unsigned char state_frame[STNC_STNP_HEADER_SIZE + STNC_STNP_STATE_SIZE];
+    unsigned char get_headers[STNC_STNP_HEADER_SIZE + 8u];
+    unsigned char headers_frame[STNC_STNP_HEADER_SIZE + 8u + STNC_STNP_HEADER_WIRE_SIZE];
     unsigned char get_peers[STNC_STNP_HEADER_SIZE];
     unsigned char peers_frame[STNC_STNP_HEADER_SIZE + 14u];
     stnc_stnp_hello hello;
@@ -43,6 +45,8 @@ int main(void)
     stnc_stnp_peers peers;
     size_t written;
     size_t payload_length;
+    uint32_t header_start;
+    uint32_t header_count;
     size_t index;
 
     for (index = 0; index < sizeof(network_id); ++index) {
@@ -111,6 +115,65 @@ int main(void)
         return 1;
     }
     write_u32(state_frame + 92, 252u);
+
+    if (stnc_stnp_encode_get_headers(
+            252u,
+            1u,
+            get_headers,
+            sizeof(get_headers),
+            &written
+        ) != 0 ||
+        written != sizeof(get_headers) ||
+        memcmp(get_headers, "STNP", 4) != 0 ||
+        get_headers[6] != 0u ||
+        get_headers[7] != STNC_STNP_GET_HEADERS) {
+        return 1;
+    }
+
+    if (stnc_stnp_encode_get_headers(
+            252u,
+            0u,
+            get_headers,
+            sizeof(get_headers),
+            &written
+        ) == 0) {
+        return 1;
+    }
+
+    memset(headers_frame, 0, sizeof(headers_frame));
+    memcpy(headers_frame, "STNP", 4);
+    write_u16(headers_frame + 4, STNC_STNP_VERSION);
+    write_u16(headers_frame + 6, STNC_STNP_HEADERS);
+    write_u32(headers_frame + 8, 8u + STNC_STNP_HEADER_WIRE_SIZE);
+    write_u32(headers_frame + 12, 252u);
+    write_u32(headers_frame + 16, 1u);
+
+    if (stnc_stnp_decode_headers_header(
+            headers_frame,
+            STNC_STNP_HEADER_SIZE,
+            &payload_length
+        ) != 0 ||
+        payload_length != 8u + STNC_STNP_HEADER_WIRE_SIZE ||
+        stnc_stnp_decode_headers(
+            headers_frame,
+            sizeof(headers_frame),
+            &header_start,
+            &header_count
+        ) != 0 ||
+        header_start != 252u ||
+        header_count != 1u) {
+        return 1;
+    }
+
+    write_u32(headers_frame + 16, 2u);
+    if (stnc_stnp_decode_headers(
+            headers_frame,
+            sizeof(headers_frame),
+            &header_start,
+            &header_count
+        ) == 0) {
+        return 1;
+    }
 
     if (stnc_stnp_encode_get_peers(
             get_peers,
