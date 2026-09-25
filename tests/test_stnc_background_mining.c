@@ -19,7 +19,10 @@ static unsigned int progress_calls;
 
 const stnc_config *stnc_config_get(void){return &config;}
 uint64_t stnc_platform_monotonic_ms(void){return clock_ms;}
+int stnc_wallet_store_exists(void){return wallet_ok;}
 int stnc_wallet_store_load(stnc_wallet_key *key){if(!wallet_ok)return 1;memset(key,0,sizeof(*key));key->public_key[0]=1u;return 0;}
+int stnc_wallet_address(const stnc_wallet_key *key,char address[STNC_WALLET_ADDRESS_SIZE+1u])
+{size_t i;if(!wallet_ok||key==NULL||address==NULL)return 1;memcpy(address,"stnw0_",6u);for(i=6u;i<70u;i++)address[i]='a';address[70]='\0';return 0;}
 void stnc_wallet_clear(stnc_wallet_key *key){if(key!=NULL)memset(key,0,sizeof(*key));}
 int stnc_core_derive_address(uint16_t type,const uint8_t *source,size_t source_length,char *address,size_t capacity)
 {
