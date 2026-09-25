@@ -180,9 +180,6 @@ static int stnc_command_mining(int argc,char **argv)
             stnc_core_mining_template_release(payload);fprintf(stderr,"Mining template unavailable or unsupported.\n");return 1;
         }
         memcpy(block,work.block,sizeof(block));
-        if(memcmp(block,work.parent_id,32u)!=0){
-            stnc_core_mining_template_release(payload);fprintf(stderr,"Mining template parent mismatch.\n");return 1;
-        }
         {stnc_mining_context context;
         if(stnc_core_mining_context(&context)!=0||!context.template_available||
            memcmp(context.tip_id,work.parent_id,32u)!=0||memcmp(context.target,block+120u,32u)!=0){
