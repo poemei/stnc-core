@@ -95,6 +95,19 @@ int stnc_stnc_encode(
     return 0;
 }
 
+int stnc_stnc_encode_block_height(
+    uint64_t height,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written)
+{
+    uint8_t payload[8];
+    stnc_stnc_message message;
+    stnc_write_u64(payload,height);
+    memset(&message,0,sizeof(message));
+    message.kind=STNC_STNC_REQUEST;message.method=STNC_STNC_METHOD_BLOCK_HEIGHT;
+    message.code=STNC_STNC_OK;message.request_id=request_id;
+    message.payload=payload;message.length=sizeof(payload);
+    return stnc_stnc_encode(&message,buffer,capacity,written);
+}
+
 int stnc_stnc_encode_derive_address(
     uint16_t type,
     const uint8_t *source,
