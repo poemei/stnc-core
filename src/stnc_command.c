@@ -171,10 +171,14 @@ static int stnc_command_mining(int argc,char **argv)
             stnc_core_mining_template_release(payload);fprintf(stderr,"Mining template unavailable or unsupported.\n");return 1;
         }
         memcpy(block,work.block,sizeof(block));
-        if(stnc_core_check_work_base(work.parent_id,&checked)!=0){stnc_core_mining_template_release(payload);fprintf(stderr,"Mining work base is stale.\n");return 1;}
+        {stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
+        if(base!=STNC_CORE_WORK_BASE_CURRENT){stnc_core_mining_template_release(payload);
+            fprintf(stderr,base==STNC_CORE_WORK_BASE_STALE?"Mining work base is stale.\n":"Mining work base check failed.\n");return 1;}}
         switch(stnc_mining_search(block,0u,attempts,&nonce,digest)){
         case STNC_MINING_FOUND:
-            if(stnc_core_check_work_base(work.parent_id,&checked)!=0){stnc_core_mining_template_release(payload);fprintf(stderr,"Solved mining work became stale.\n");return 1;}
+            {stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
+            if(base!=STNC_CORE_WORK_BASE_CURRENT){stnc_core_mining_template_release(payload);
+                fprintf(stderr,base==STNC_CORE_WORK_BASE_STALE?"Solved mining work became stale.\n":"Solved mining work recheck failed.\n");return 1;}}
             if(stnc_core_submit_work(work.parent_id,work.work_id,address,block,sizeof(block),accepted_id,&height,accepted_work)!=0){
                 stnc_core_mining_template_release(payload);fprintf(stderr,"Solved mining work was not accepted by Chain.\n");return 1;
             }
@@ -200,10 +204,11 @@ static int stnc_command_mining(int argc,char **argv)
     }
     if(strcmp(argv[2],"check")==0){
         stnc_mining_context current,checked;
-        if(stnc_core_mining_context(&current)!=0||
-           stnc_core_check_work_base(current.tip_id,&checked)!=0){
-            fprintf(stderr,"Mining work base is stale or unavailable.\n");return 1;
-        }
+        stnc_core_work_base_result base;
+        if(stnc_core_mining_context(&current)!=0){fprintf(stderr,"Mining context unavailable.\n");return 1;}
+        base=stnc_core_check_work_base(current.tip_id,&checked);
+        if(base==STNC_CORE_WORK_BASE_STALE){fprintf(stderr,"Mining work base is stale.\n");return 1;}
+        if(base!=STNC_CORE_WORK_BASE_CURRENT){fprintf(stderr,"Mining work base check failed.\n");return 1;}
         printf("Mining work base\n  Status: current\n  Height: %" PRIu64 "\n  Template: %s\n",
             checked.height,checked.template_available?"available":"unavailable");
         return 0;
