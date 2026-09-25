@@ -42,6 +42,7 @@ cl /nologo /W4 /TC /Iincludes ^
     src\stnc_stnp.c ^
     src\stnc_wallet.c ^
     platforms\windows\platform_windows.c ^
+    src\crypto\ed25519_donna\ed25519_provider.c ^
     /Fe:build\stnc-core.exe ^
     /link ws2_32.lib winhttp.lib bcrypt.lib
 
