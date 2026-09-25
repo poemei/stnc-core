@@ -162,7 +162,10 @@ static int stnc_command_mining(int argc,char **argv)
         if(argc!=4||argv[3][0]=='\0'){stnc_command_print_usage();return 1;}
         for(j=0u;argv[3][j]!='\0';j++){unsigned int d;if(argv[3][j]<'0'||argv[3][j]>'9')return 1;d=(unsigned int)(argv[3][j]-'0');if(attempts>(UINT64_MAX-d)/10u)return 1;attempts=attempts*10u+d;}
         if(attempts==0u){fprintf(stderr,"Mining attempts must be greater than zero.\n");return 1;}
-        if(stnc_wallet_store_load(&key)!=0||stnc_wallet_address(&key,address)!=0){stnc_wallet_clear(&key);fprintf(stderr,"Mining requires a valid Core wallet.\n");return 1;}
+        if(stnc_wallet_store_load(&key)!=0){stnc_wallet_clear(&key);fprintf(stderr,"Mining requires a valid Core wallet.\n");return 1;}
+        if(stnc_core_derive_address(STNC_STNC_ADDRESS_IDENTITY,key.public_key,sizeof(key.public_key),address,sizeof(address))!=0){
+            stnc_wallet_clear(&key);fprintf(stderr,"Mining identity derivation failed.\n");return 1;
+        }
         stnc_wallet_clear(&key);
         if(stnc_core_mining_template(&payload,&payload_length,&work)!=0||work.block_length!=sizeof(block)){
             stnc_core_mining_template_release(payload);fprintf(stderr,"Mining template unavailable or unsupported.\n");return 1;
