@@ -15,6 +15,7 @@ static void stnc_command_print_usage(void)
         "Usage:\n"
         "  stnc-core\n"
         "  stnc-core status\n"
+        "  stnc-core peers\n"
         "  stnc-core address identity <source>\n"
         "  stnc-core address contract <source>\n"
         "  stnc-core address wallet <source>\n"
@@ -48,6 +49,16 @@ static int stnc_command_status(void)
         state->block_count,
         state->protocol_revision
     );
+    return 0;
+}
+
+
+static int stnc_command_peers(void)
+{
+    const stnc_core_peer_status *peer=stnc_core_get_peer_status();
+    if(peer==NULL||!peer->connected){printf("Selected P2P peer: none\n");return 0;}
+    printf("Selected P2P peer\n  Endpoint: %s:%u\n  Capabilities: %" PRIu32 "\n  Qualification latency: %" PRIu64 " ms\n",
+        peer->host,(unsigned int)peer->port,peer->capabilities,peer->latency_ms);
     return 0;
 }
 
@@ -202,6 +213,8 @@ int stnc_command_run(int argc, char **argv)
         }
         return stnc_command_status();
     }
+
+    if (strcmp(argv[1], "peers") == 0) { if(argc!=2){stnc_command_print_usage();return 1;} return stnc_command_peers(); }
 
     if (strcmp(argv[1], "address") == 0) {
         return stnc_command_address(argc, argv);
