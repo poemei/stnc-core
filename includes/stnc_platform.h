@@ -2,6 +2,7 @@
 #define STNC_PLATFORM_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 int stnc_platform_init(void);
 void stnc_platform_shutdown(void);
@@ -46,5 +47,7 @@ int stnc_platform_https_get(
     size_t capacity,
     size_t *length
 );
+
+uint64_t stnc_platform_monotonic_ms(void);
 
 #endif
