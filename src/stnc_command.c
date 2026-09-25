@@ -197,6 +197,14 @@ static int stnc_command_mining(int argc,char **argv)
         }
         switch(stnc_mining_search(block,first_nonce,attempts,&nonce,digest)){
         case STNC_MINING_FOUND:
+            if(!stnc_mining_hash_meets_target(digest,block+120u)){
+                stnc_core_mining_template_release(payload);fprintf(stderr,"Mining worker returned an invalid solution.\n");return 1;
+            }
+            {uint8_t verified_digest[32];
+            if(stnc_mining_hash(block,verified_digest)!=0||memcmp(verified_digest,digest,32u)!=0||
+               !stnc_mining_hash_meets_target(verified_digest,block+120u)){
+                stnc_core_mining_template_release(payload);fprintf(stderr,"Mining solution verification failed.\n");return 1;
+            }}
             {stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
             if(base!=STNC_CORE_WORK_BASE_CURRENT){stnc_core_mining_template_release(payload);
                 fprintf(stderr,base==STNC_CORE_WORK_BASE_STALE?"Solved mining work became stale.\n":"Solved mining work recheck failed.\n");return 1;}
