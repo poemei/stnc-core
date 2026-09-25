@@ -157,7 +157,8 @@ static int stnc_command_mining(int argc,char **argv)
     if(strcmp(argv[2],"mine-once")==0){
         uint8_t *payload=NULL,block[STNC_STNC_BLOCK_HEADER_SIZE],digest[32],accepted_id[32],accepted_work[40];
         size_t payload_length=0u;stnc_mining_template work;stnc_mining_context checked;
-        uint64_t attempts=0u,nonce=0u,height=0u;size_t j;stnc_wallet_key key;char address[STNC_WALLET_ADDRESS_SIZE+1u];\n        memset(&key,0,sizeof(key));
+        uint64_t attempts=0u,nonce=0u,height=0u;size_t j;stnc_wallet_key key;char address[STNC_WALLET_ADDRESS_SIZE+1u];
+        memset(&key,0,sizeof(key));
         if(argc!=4||argv[3][0]=='\0'){stnc_command_print_usage();return 1;}
         for(j=0u;argv[3][j]!='\0';j++){unsigned int d;if(argv[3][j]<'0'||argv[3][j]>'9')return 1;d=(unsigned int)(argv[3][j]-'0');if(attempts>(UINT64_MAX-d)/10u)return 1;attempts=attempts*10u+d;}
         if(attempts==0u){fprintf(stderr,"Mining attempts must be greater than zero.\n");return 1;}
