@@ -526,6 +526,132 @@ static int stnc_core_open_selected_peer(
     }
 
     stnc_log_info("Selected Chain P2P operational session established.");
+
+    if (stnc_core_probe_selected_peer_headers(&state) != 0) {
+        stnc_log_error("Selected Chain P2P forward header evidence probe failed.");
+        stnc_network_disconnect(&p2p_connection);
+        return 1;
+    }
+
+    return 0;
+}
+
+static int stnc_core_probe_selected_peer_headers(
+    const stnc_stnp_state *peer_state
+)
+{
+    uint8_t request[STNC_STNP_HEADER_SIZE + 8u];
+    uint8_t response_header[STNC_STNP_HEADER_SIZE];
+    uint8_t response_frame[STNC_STNP_HEADERS_FRAME_MAX];
+    size_t written;
+    size_t payload_length;
+    uint32_t start;
+    uint32_t count;
+    uint64_t first_index;
+    uint64_t available;
+    char message[512];
+
+    if (peer_state == NULL ||
+        !chain_state.available ||
+        !stnc_network_is_connected(&p2p_connection)) {
+        stnc_log_error("Selected Chain P2P header evidence prerequisites are unavailable.");
+        return 1;
+    }
+
+    first_index = chain_state.block_count;
+    if ((uint64_t)peer_state->block_count <= first_index) {
+        stnc_log_info("Selected Chain P2P peer has no forward header evidence beyond the current STNC Chain view.");
+        return 0;
+    }
+
+    available = (uint64_t)peer_state->block_count - first_index;
+    count = available > STNC_STNP_HEADERS_MAX
+        ? STNC_STNP_HEADERS_MAX
+        : (uint32_t)available;
+
+    if (first_index > UINT32_MAX) {
+        stnc_log_error("Selected Chain P2P header evidence start exceeds STNP index range.");
+        return 1;
+    }
+    start = (uint32_t)first_index;
+
+    if (stnc_stnp_encode_get_headers(
+            start,
+            count,
+            request,
+            sizeof(request),
+            &written
+        ) != 0 ||
+        written != sizeof(request)) {
+        stnc_log_error("Selected Chain P2P peer GET_HEADERS ENCODE failed.");
+        return 1;
+    }
+
+    if (stnc_network_send(&p2p_connection, request, written) != 0) {
+        stnc_log_error("Selected Chain P2P peer GET_HEADERS SEND failed.");
+        return 1;
+    }
+
+    if (snprintf(
+            message,
+            sizeof(message),
+            "Selected Chain P2P peer GET_HEADERS sent: start=%" PRIu32 " count=%" PRIu32,
+            start,
+            count
+        ) < 0) {
+        return 1;
+    }
+    stnc_log_info(message);
+
+    if (stnc_network_receive(
+            &p2p_connection,
+            response_header,
+            sizeof(response_header)
+        ) != 0 ||
+        stnc_stnp_decode_headers_header(
+            response_header,
+            sizeof(response_header),
+            &payload_length
+        ) != 0) {
+        stnc_log_error("Selected Chain P2P peer HEADERS header is unavailable or invalid.");
+        return 1;
+    }
+
+    memcpy(response_frame, response_header, sizeof(response_header));
+
+    if (stnc_network_receive(
+            &p2p_connection,
+            response_frame + STNC_STNP_HEADER_SIZE,
+            payload_length
+        ) != 0 ||
+        stnc_stnp_decode_headers(
+            response_frame,
+            STNC_STNP_HEADER_SIZE + payload_length,
+            &start,
+            &count
+        ) != 0) {
+        stnc_log_error("Selected Chain P2P peer HEADERS payload is unavailable or invalid.");
+        return 1;
+    }
+
+    if ((uint64_t)start != first_index ||
+        count == 0u ||
+        (uint64_t)count > available) {
+        stnc_log_error("Selected Chain P2P peer HEADERS range does not match the requested evidence.");
+        return 1;
+    }
+
+    if (snprintf(
+            message,
+            sizeof(message),
+            "Selected Chain P2P peer HEADERS evidence received: start=%" PRIu32 " count=%" PRIu32,
+            start,
+            count
+        ) < 0) {
+        return 1;
+    }
+    stnc_log_info(message);
+    stnc_log_info("Selected Chain P2P header evidence remains unaccepted pending full block retrieval and Chain validation.");
     return 0;
 }
 
