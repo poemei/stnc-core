@@ -55,7 +55,7 @@ void stnc_background_mining_tick(void)
     const stnc_config *config;stnc_mining_service_status status;stnc_stratum_job job;
     stnc_stratum_result submit_result;char identity[STNC_STNC_ADDRESS_IDENTITY_SIZE+1u];
     uint64_t now,attempts=0u,found_nonce=0u,start_ms,elapsed_ms;uint8_t digest[32];
-    stnc_mining_result result;
+    stnc_mining_result result;int poll_result;
 
     if(!initialized)return;
     stnc_mining_service_status_read(&status);
@@ -77,7 +77,9 @@ void stnc_background_mining_tick(void)
     }
 
     memset(&job,0,sizeof(job));
-    if(stnc_stratum_client_receive_job(&stratum,&job,block,sizeof(block))!=0){
+    poll_result=stnc_stratum_client_poll_job(&stratum,&job,block,sizeof(block));
+    if(poll_result==1)return;
+    if(poll_result!=0){
         stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
     }
     if(job.block_length!=STNC_STNM_BLOCK_HEADER_SIZE){
