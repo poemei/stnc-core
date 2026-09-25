@@ -32,6 +32,12 @@ typedef struct stnc_core_peer_status {
     uint64_t latency_ms;
 } stnc_core_peer_status;
 
+typedef enum stnc_core_evidence_result {
+    STNC_CORE_EVIDENCE_ERROR = 0,
+    STNC_CORE_EVIDENCE_ADOPTED = 1,
+    STNC_CORE_EVIDENCE_CURRENT = 2
+} stnc_core_evidence_result;
+
 typedef struct stnc_core_chain_state {
     int available;
     uint8_t network_id[32];
@@ -70,7 +76,7 @@ int stnc_core_pending(stnc_pending_state *state);
 int stnc_core_submit_block_evidence(const uint8_t *block,size_t block_length);
 int stnc_core_submit_history_evidence(
     const uint8_t *const *blocks,const size_t *block_lengths,size_t block_count);
-int stnc_core_submit_suffix_evidence(
+stnc_core_evidence_result stnc_core_submit_suffix_evidence(
     uint32_t prefix_count,const uint8_t *const *blocks,const size_t *block_lengths,size_t block_count);
 int stnc_core_submit_transaction(const uint8_t *transaction,size_t transaction_length,stnc_submission_result *result);
 
