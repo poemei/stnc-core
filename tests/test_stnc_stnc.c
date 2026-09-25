@@ -128,6 +128,24 @@ static int check_block_evidence(void)
     return 0;
 }
 
+static int check_history_evidence(void)
+{
+    uint8_t a[STNC_STNC_BLOCK_HEADER_SIZE]={0},b[STNC_STNC_BLOCK_HEADER_SIZE]={0};
+    const uint8_t *blocks[2]={a,b};
+    size_t lengths[2]={sizeof(a),sizeof(b)};
+    uint8_t frame[STNC_STNC_HEADER_SIZE+4u+2u*(4u+STNC_STNC_BLOCK_HEADER_SIZE)];
+    size_t written=0u;
+    if(stnc_stnc_encode_submit_history_evidence(blocks,lengths,2u,UINT64_C(12),
+            frame,sizeof(frame),&written)!=0||written!=sizeof(frame)||
+       frame[8]!=0x10u||frame[9]!=0x07u||
+       frame[24]!=0u||frame[25]!=0u||frame[26]!=0u||frame[27]!=2u||
+       frame[28]!=0u||frame[29]!=0u||frame[30]!=0u||frame[31]!=STNC_STNC_BLOCK_HEADER_SIZE)return 1;
+    lengths[1]=STNC_STNC_BLOCK_HEADER_SIZE-1u;
+    if(stnc_stnc_encode_submit_history_evidence(blocks,lengths,2u,UINT64_C(12),
+            frame,sizeof(frame),&written)==0||written!=0u)return 1;
+    return 0;
+}
+
 int main(void)
 {
     uint8_t frame[STNC_STNC_DERIVE_FRAME_MAX];
@@ -152,7 +170,7 @@ int main(void)
         return 1;
     }
 
-    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0 || check_block_evidence() != 0) {
+    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0 || check_block_evidence() != 0 || check_history_evidence() != 0) {
         return 1;
     }
 
