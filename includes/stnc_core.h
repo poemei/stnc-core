@@ -74,6 +74,7 @@ int stnc_core_balance(const char *wallet, uint64_t *units);
 int stnc_core_contract_state(const char *contract, stnc_contract_state *state);
 int stnc_core_pending(stnc_pending_state *state);
 int stnc_core_mining_context(stnc_mining_context *context);
+int stnc_core_check_work_base(const uint8_t tip_id[32],stnc_mining_context *context);
 int stnc_core_mining_template(uint8_t **payload,size_t *payload_length,stnc_mining_template *work);
 void stnc_core_mining_template_release(uint8_t *payload);
 int stnc_core_submit_block_evidence(const uint8_t *block,size_t block_length);
