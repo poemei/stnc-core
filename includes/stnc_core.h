@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "stnc_stnc.h"
+
 typedef enum stnc_core_state {
     STNC_CORE_STATE_UNINITIALIZED = 0,
     STNC_CORE_STATE_INITIALIZED,
@@ -41,5 +43,8 @@ int stnc_core_derive_address(
     char *address,
     size_t capacity
 );
+
+int stnc_core_balance(const char *wallet, uint64_t *units);
+int stnc_core_contract_state(const char *contract, stnc_contract_state *state);
 
 #endif
