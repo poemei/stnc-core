@@ -252,7 +252,10 @@ static int stnc_command_mining(int argc,char **argv)
                 stnc_core_mining_template_release(payload);
                 fprintf(stderr,"Mining pass exhausted against changed Chain context.\n");return 1;
             }}
-            printf("Mining pass complete\n  Attempts: %" PRIu64 "\n  Solution: none\n",attempts);
+            printf(submit_solution?
+                "Mining pass complete\n  Attempts: %" PRIu64 "\n  Solution: none\n":
+                "Mining scan complete\n  Attempts: %" PRIu64 "\n  Solution: none\n",
+                attempts);
             stnc_core_mining_template_release(payload);return 0;
         default:
             stnc_core_mining_template_release(payload);fprintf(stderr,"Mining worker failed.\n");return 1;
