@@ -32,24 +32,23 @@ static void stnc_command_print_usage(void)
 
 static int stnc_command_status(void)
 {
-    const stnc_core_chain_state *state = stnc_core_get_chain_state();
-
-    if (state == NULL || !state->available) {
-        fprintf(stderr, "Chain state is unavailable.\n");
-        return 1;
+    const stnc_core_chain_state *state=stnc_core_get_chain_state();
+    const stnc_core_peer_status *peer=stnc_core_get_peer_status();
+    stnc_core_runtime_status runtime;
+    stnc_core_get_runtime_status(&runtime);
+    printf("STNC Core status\n");
+    printf("  Chain RPC: %s\n",runtime.chain_connected?"connected":"disconnected");
+    printf("  Chain state: %s\n",runtime.chain_state_available?"available":"unavailable");
+    if(state!=NULL&&state->available){
+        printf("  Height: %" PRIu64 "\n  Blocks: %" PRIu32 "\n  Protocol: %" PRIu32 "\n",
+            state->height,state->block_count,state->protocol_revision);
     }
-
-    printf(
-        "Chain status\n"
-        "  Connected: yes\n"
-        "  Height: %" PRIu64 "\n"
-        "  Blocks: %" PRIu32 "\n"
-        "  Protocol: %" PRIu32 "\n",
-        state->height,
-        state->block_count,
-        state->protocol_revision
-    );
-    return 0;
+    printf("  Root STNP discovery: %s\n",runtime.root_peer_capabilities!=0u?"qualified":"unavailable");
+    printf("  P2P session: %s\n",runtime.p2p_connected?"connected":"disconnected");
+    printf("  Peer candidates: %zu\n  Qualified peers: %zu\n",runtime.candidate_count,runtime.qualified_count);
+    if(peer!=NULL&&peer->connected)printf("  Selected peer: %s:%u\n",peer->host,(unsigned int)peer->port);
+    else printf("  Selected peer: none\n");
+    return runtime.chain_connected&&runtime.chain_state_available?0:1;
 }
 
 
