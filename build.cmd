@@ -30,6 +30,7 @@ if not exist build mkdir build
 cl /nologo /W4 /TC /Iincludes ^
     src\main.c ^
     src\stnc_command.c ^
+    src\stnc_contract_status.c ^
     src\stnc_core.c ^
     src\stnc_log.c ^
     src\stnc_config.c ^
@@ -176,6 +177,11 @@ if errorlevel 1 (
     echo WALLET STATUS TEST FAILED
     exit /b 1
 )
+
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_contract_status.c src\stnc_contract_status.c /Fe:build\test-stnc-contract-status.exe
+if errorlevel 1 exit /b 1
+build\test-stnc-contract-status.exe
+if errorlevel 1 exit /b 1
 
 echo.
 echo BUILD SUCCESSFUL
