@@ -4,6 +4,7 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <winhttp.h>
+#include <bcrypt.h>
 
 #include <limits.h>
 #include <stddef.h>
@@ -491,6 +492,28 @@ int stnc_platform_https_get(
     WinHttpCloseHandle(session);
     return result;
 }
+
+int stnc_platform_random(unsigned char *buffer,size_t length)
+{
+    if(buffer==NULL||length==0||length>(size_t)ULONG_MAX)return 1;
+    return BCryptGenRandom(NULL,buffer,(ULONG)length,BCRYPT_USE_SYSTEM_PREFERRED_RNG)==0?0:1;
+}
+
+int stnc_platform_sha256(const unsigned char *buffer,size_t length,unsigned char digest[32])
+{
+    BCRYPT_ALG_HANDLE algorithm=NULL;BCRYPT_HASH_HANDLE hash=NULL;DWORD object_length=0,cb=0;PUCHAR object=NULL;NTSTATUS status;
+    if(buffer==NULL||digest==NULL||length>(size_t)ULONG_MAX)return 1;
+    status=BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,NULL,0);
+    if(status==0)status=BCryptGetProperty(algorithm,BCRYPT_OBJECT_LENGTH,(PUCHAR)&object_length,sizeof(object_length),&cb,0);
+    if(status==0){object=(PUCHAR)HeapAlloc(GetProcessHeap(),0,object_length);if(object==NULL)status=(NTSTATUS)-1;}
+    if(status==0)status=BCryptCreateHash(algorithm,&hash,object,object_length,NULL,0,0);
+    if(status==0)status=BCryptHashData(hash,(PUCHAR)buffer,(ULONG)length,0);
+    if(status==0)status=BCryptFinishHash(hash,digest,32,0);
+    if(hash!=NULL)BCryptDestroyHash(hash);if(object!=NULL){SecureZeroMemory(object,object_length);HeapFree(GetProcessHeap(),0,object);}if(algorithm!=NULL)BCryptCloseAlgorithmProvider(algorithm,0);
+    return status==0?0:1;
+}
+
+void stnc_platform_secure_clear(void *buffer,size_t length){if(buffer!=NULL&&length!=0)SecureZeroMemory(buffer,length);}
 
 uint64_t stnc_platform_monotonic_ms(void)
 {
