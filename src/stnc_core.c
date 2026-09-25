@@ -22,6 +22,7 @@
 #define STNC_SUBMIT_TRANSACTION_REQUEST_ID UINT64_C(5)
 #define STNC_PENDING_REQUEST_ID UINT64_C(6)
 #define STNC_BLOCK_EVIDENCE_REQUEST_ID UINT64_C(7)
+#define STNC_HISTORY_EVIDENCE_REQUEST_ID UINT64_C(8)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
@@ -1303,6 +1304,45 @@ int stnc_core_submit_block_evidence(const uint8_t *block,size_t block_length)
     }
     free(request);
     return rc;
+}
+
+int stnc_core_submit_history_evidence(
+    const uint8_t *const *blocks,const size_t *block_lengths,size_t block_count)
+{
+    uint8_t *request,*payload=NULL,response_header[STNC_STNC_HEADER_SIZE];
+    uint8_t tip_id[32],work[40];
+    uint64_t height;
+    stnc_stnc_message response;
+    size_t capacity=STNC_STNC_HEADER_SIZE+4u,written,i;
+    int rc=1;
+
+    if(core_state==STNC_CORE_STATE_UNINITIALIZED||core_state==STNC_CORE_STATE_STOPPED||
+       !stnc_network_is_connected(&chain_connection)||blocks==NULL||block_lengths==NULL||
+       block_count==0u||block_count>UINT32_MAX)return 1;
+    for(i=0u;i<block_count;i++){
+        if(blocks[i]==NULL||block_lengths[i]<STNC_STNC_BLOCK_HEADER_SIZE||
+           block_lengths[i]>STNC_STNC_BLOCK_MAX_SIZE||capacity>SIZE_MAX-4u||
+           block_lengths[i]>SIZE_MAX-capacity-4u)return 1;
+        capacity+=4u+block_lengths[i];
+    }
+    request=(uint8_t *)malloc(capacity);if(request==NULL)return 1;
+    if(stnc_stnc_encode_submit_history_evidence(blocks,block_lengths,block_count,
+            STNC_HISTORY_EVIDENCE_REQUEST_ID,request,capacity,&written)!=0)goto done;
+    if(stnc_network_send(&chain_connection,request,written)!=0||
+       stnc_network_receive(&chain_connection,response_header,sizeof(response_header))!=0||
+       stnc_stnc_decode_header(response_header,sizeof(response_header),&response)!=0||
+       response.method!=STNC_STNC_METHOD_SUBMIT_HISTORY_EVIDENCE||
+       response.request_id!=STNC_HISTORY_EVIDENCE_REQUEST_ID||
+       response.code!=STNC_STNC_OK||response.length!=STNC_STNC_BLOCK_ACCEPTED_SIZE)goto done;
+    payload=(uint8_t *)malloc(response.length);if(payload==NULL)goto done;
+    if(stnc_network_receive(&chain_connection,payload,response.length)!=0||
+       stnc_stnc_decode_block_accepted(payload,response.length,tip_id,&height,work)!=0)goto done;
+    memcpy(chain_state.tip_id,tip_id,sizeof(tip_id));chain_state.height=height;
+    memcpy(chain_state.cumulative_work,work,sizeof(work));
+    chain_state.block_count=height<UINT32_MAX?(uint32_t)(height+1u):UINT32_MAX;
+    chain_state.available=1;rc=0;
+done:
+    free(payload);free(request);return rc;
 }
 
 int stnc_core_submit_transaction(const uint8_t *transaction,size_t transaction_length,stnc_submission_result *result)
