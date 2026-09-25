@@ -7,7 +7,16 @@ static stnc_peer_candidate candidate(const char *host, unsigned int port)
     stnc_peer_candidate value;
 
     memset(&value, 0, sizeof(value));
-    strncpy(value.host, host, sizeof(value.host) - 1u);
+    if (host != NULL) {
+        size_t length;
+
+        length = strlen(host);
+
+        if (length < sizeof(value.host)) {
+            memcpy(value.host, host, length + 1u);
+        }
+    }
+
     value.port = (uint16_t)port;
     return value;
 }
