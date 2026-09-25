@@ -1,5 +1,6 @@
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "stnc_config.h"
@@ -547,10 +548,17 @@ static int stnc_core_probe_selected_peer_headers(
     uint8_t request[STNC_STNP_HEADER_SIZE + 8u];
     uint8_t response_header[STNC_STNP_HEADER_SIZE];
     uint8_t response_frame[STNC_STNP_HEADERS_FRAME_MAX];
+    uint8_t block_request[STNC_STNP_HEADER_SIZE + STNC_STNP_BLOCK_INDEX_SIZE];
+    uint8_t block_header[STNC_STNP_HEADER_SIZE];
+    uint8_t *block_frame;
+    const uint8_t *block_bytes;
     size_t written;
     size_t payload_length;
+    size_t block_payload_length;
+    size_t block_length;
     uint32_t start;
     uint32_t count;
+    uint32_t block_index;
     uint64_t first_index;
     uint64_t available;
     char message[512];
@@ -655,7 +663,78 @@ static int stnc_core_probe_selected_peer_headers(
         return 1;
     }
     stnc_log_info(message);
-    stnc_log_info("Selected Chain P2P header evidence remains unaccepted pending full block retrieval and Chain validation.");
+
+    if (stnc_stnp_encode_get_block(
+            start,
+            block_request,
+            sizeof(block_request),
+            &written
+        ) != 0 ||
+        written != sizeof(block_request) ||
+        stnc_network_send(&p2p_connection, block_request, written) != 0) {
+        stnc_log_error("Selected Chain P2P peer GET_BLOCK failed.");
+        return 1;
+    }
+
+    if (stnc_network_receive(
+            &p2p_connection,
+            block_header,
+            sizeof(block_header)
+        ) != 0 ||
+        stnc_stnp_decode_block_header(
+            block_header,
+            sizeof(block_header),
+            &block_payload_length
+        ) != 0) {
+        stnc_log_error("Selected Chain P2P peer BLOCK header is unavailable or invalid.");
+        return 1;
+    }
+
+    block_frame = (uint8_t *)malloc(STNC_STNP_HEADER_SIZE + block_payload_length);
+    if (block_frame == NULL) {
+        stnc_log_error("Selected Chain P2P peer BLOCK buffer allocation failed.");
+        return 1;
+    }
+
+    memcpy(block_frame, block_header, sizeof(block_header));
+    if (stnc_network_receive(
+            &p2p_connection,
+            block_frame + STNC_STNP_HEADER_SIZE,
+            block_payload_length
+        ) != 0 ||
+        stnc_stnp_decode_block(
+            block_frame,
+            STNC_STNP_HEADER_SIZE + block_payload_length,
+            &block_index,
+            &block_bytes,
+            &block_length
+        ) != 0 ||
+        block_index != start ||
+        block_length < STNC_STNP_HEADER_WIRE_SIZE ||
+        memcmp(
+            block_bytes,
+            response_frame + STNC_STNP_HEADER_SIZE + 8u,
+            STNC_STNP_HEADER_WIRE_SIZE
+        ) != 0) {
+        free(block_frame);
+        stnc_log_error("Selected Chain P2P peer BLOCK does not match advertised header evidence.");
+        return 1;
+    }
+
+    if (snprintf(
+            message,
+            sizeof(message),
+            "Selected Chain P2P peer BLOCK evidence received: index=%" PRIu32 " bytes=%zu",
+            block_index,
+            block_length
+        ) < 0) {
+        free(block_frame);
+        return 1;
+    }
+    stnc_log_info(message);
+    free(block_frame);
+
+    stnc_log_info("Selected Chain P2P block evidence remains unaccepted pending Chain validation.");
     return 0;
 }
 
