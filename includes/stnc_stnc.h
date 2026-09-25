@@ -139,6 +139,10 @@ int stnc_stnc_encode_empty_request(
     uint16_t method,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written
 );
 
+int stnc_stnc_encode_check_work_base(
+    const uint8_t tip_id[32],uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written
+);
+
 int stnc_stnc_decode_mining_template(
     const uint8_t *payload,size_t length,stnc_mining_template *work
 );
