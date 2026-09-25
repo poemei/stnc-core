@@ -10,6 +10,15 @@ static int sha_partial_fail;
 static unsigned int clear_calls;
 static size_t clear_length;
 static size_t clear_lengths[8];
+static uint64_t monotonic_value;
+static uint64_t monotonic_step;
+
+uint64_t stnc_platform_monotonic_ms(void)
+{
+    uint64_t value=monotonic_value;
+    monotonic_value+=monotonic_step;
+    return value;
+}
 
 void stnc_platform_secure_clear(void *buffer,size_t length)
 {
@@ -35,7 +44,7 @@ int main(void)
 {
     static const uint8_t domain[]="STN-CHAIN:BLOCK:ID:1";
     uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE]={0},original[STNC_STNC_BLOCK_HEADER_SIZE];
-    uint8_t digest[32]={0},target[32]={0};uint64_t nonce=99u;size_t i;
+    uint8_t digest[32]={0},target[32]={0};uint64_t nonce=99u,attempts=0u;size_t i;
 
     target[31]=1u;
     if(!stnc_mining_hash_meets_target(digest,target))return 1;
@@ -98,6 +107,17 @@ int main(void)
     if(stnc_mining_search(block,0u,1u,&nonce,digest)!=STNC_MINING_ERROR||
        nonce!=0u||digest[0]!=0u||digest[31]!=0u)return 1;
     sha_partial_fail=0;
+
+    memset(block,0,sizeof(block));memset(block+120u,0u,32u);
+    monotonic_value=100u;monotonic_step=5u;sha_calls=0u;attempts=UINT64_MAX;nonce=UINT64_MAX;
+    if(stnc_mining_search_timed(block,7u,20u,&attempts,&nonce,digest)!=STNC_MINING_EXHAUSTED||
+       attempts!=4u||sha_calls!=4u||nonce!=0u)return 1;
+    memset(block+120u,0xff,32u);
+    monotonic_value=0u;monotonic_step=1u;attempts=0u;nonce=0u;
+    if(stnc_mining_search_timed(block,9u,20u,&attempts,&nonce,digest)!=STNC_MINING_FOUND||
+       attempts!=1u||nonce!=9u)return 1;
+    if(stnc_mining_search_timed(block,0u,0u,&attempts,&nonce,digest)!=STNC_MINING_ERROR)return 1;
+    if(stnc_mining_search_timed(NULL,0u,1u,&attempts,&nonce,digest)!=STNC_MINING_ERROR)return 1;
 
     sha_calls=0u;
     if(stnc_mining_search(block,0u,0u,&nonce,digest)!=STNC_MINING_ERROR||sha_calls!=0u)return 1;
