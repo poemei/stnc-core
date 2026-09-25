@@ -6,7 +6,13 @@
 
 #define STNC_STNC_HEADER_SIZE 24u
 #define STNC_STNC_INFO_SIZE 184u
-#define STNC_STNC_ADDRESS_SIZE 69u
+#define STNC_STNC_ADDRESS_IDENTITY_SIZE 69u
+#define STNC_STNC_ADDRESS_TYPED_SIZE 70u
+#define STNC_STNC_ADDRESS_MAX_SIZE STNC_STNC_ADDRESS_TYPED_SIZE
+#define STNC_STNC_DERIVE_PREFIX_SIZE 6u
+#define STNC_STNC_DERIVE_SOURCE_MAX 4096u
+#define STNC_STNC_DERIVE_PAYLOAD_MAX (STNC_STNC_DERIVE_PREFIX_SIZE + STNC_STNC_DERIVE_SOURCE_MAX)
+#define STNC_STNC_DERIVE_FRAME_MAX (STNC_STNC_HEADER_SIZE + STNC_STNC_DERIVE_PAYLOAD_MAX)
 
 #define STNC_STNC_VERSION 2u
 
@@ -19,6 +25,8 @@
 #define STNC_STNC_METHOD_DERIVE_ADDRESS 9u
 
 #define STNC_STNC_ADDRESS_IDENTITY 1u
+#define STNC_STNC_ADDRESS_CONTRACT 2u
+#define STNC_STNC_ADDRESS_WALLET 3u
 
 typedef struct stnc_stnc_message {
     uint16_t kind;
@@ -47,6 +55,16 @@ int stnc_stnc_encode(
     size_t *written
 );
 
+int stnc_stnc_encode_derive_address(
+    uint16_t type,
+    const uint8_t *source,
+    size_t source_length,
+    uint64_t request_id,
+    uint8_t *buffer,
+    size_t capacity,
+    size_t *written
+);
+
 int stnc_stnc_decode_header(
     const uint8_t *buffer,
     size_t length,
@@ -57,6 +75,14 @@ int stnc_stnc_decode_info(
     const uint8_t *payload,
     size_t length,
     stnc_chain_info *info
+);
+
+int stnc_stnc_decode_address(
+    uint16_t type,
+    const uint8_t *payload,
+    size_t length,
+    char *address,
+    size_t capacity
 );
 
 void stnc_stnc_write_u16(
