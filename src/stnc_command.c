@@ -184,7 +184,10 @@ static int stnc_command_mining(int argc,char **argv)
         }}
         {stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
         if(base!=STNC_CORE_WORK_BASE_CURRENT){stnc_core_mining_template_release(payload);
-            fprintf(stderr,base==STNC_CORE_WORK_BASE_STALE?"Mining work base is stale.\n":"Mining work base check failed.\n");return 1;}}
+            fprintf(stderr,base==STNC_CORE_WORK_BASE_STALE?"Mining work base is stale.\n":"Mining work base check failed.\n");return 1;}
+        if(!checked.template_available||memcmp(checked.tip_id,work.parent_id,32u)!=0||
+           memcmp(checked.target,block+120u,32u)!=0){
+            stnc_core_mining_template_release(payload);fprintf(stderr,"Checked mining context does not match template.\n");return 1;}}
         {uint64_t first_nonce=0u;
         size_t k;
         for(k=0u;k<STNC_STNC_MINING_NONCE_SIZE;k++)first_nonce=(first_nonce<<8)|block[STNC_STNC_MINING_NONCE_OFFSET+k];
@@ -192,7 +195,10 @@ static int stnc_command_mining(int argc,char **argv)
         case STNC_MINING_FOUND:
             {stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
             if(base!=STNC_CORE_WORK_BASE_CURRENT){stnc_core_mining_template_release(payload);
-                fprintf(stderr,base==STNC_CORE_WORK_BASE_STALE?"Solved mining work became stale.\n":"Solved mining work recheck failed.\n");return 1;}}
+                fprintf(stderr,base==STNC_CORE_WORK_BASE_STALE?"Solved mining work became stale.\n":"Solved mining work recheck failed.\n");return 1;}
+            if(!checked.template_available||memcmp(checked.tip_id,work.parent_id,32u)!=0||
+               memcmp(checked.target,block+120u,32u)!=0){
+                stnc_core_mining_template_release(payload);fprintf(stderr,"Solved mining work no longer matches checked Chain context.\n");return 1;}}
             if(stnc_core_submit_work(work.parent_id,work.work_id,address,block,sizeof(block),accepted_id,&height,accepted_work)!=0){
                 stnc_core_mining_template_release(payload);fprintf(stderr,"Solved mining work was not accepted by Chain.\n");return 1;
             }
