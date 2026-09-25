@@ -7,6 +7,12 @@ static size_t last_length;
 static unsigned int sha_calls;
 static int sha_fail;
 
+void stnc_platform_secure_clear(void *buffer,size_t length)
+{
+    volatile uint8_t *p=(volatile uint8_t *)buffer;
+    while(length>0u){*p++=0u;length--;}
+}
+
 int stnc_platform_sha256(const unsigned char *buffer,size_t length,unsigned char digest[32])
 {
     size_t i;
