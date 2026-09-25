@@ -130,12 +130,12 @@ static int stnc_core_submit_peer_history(uint32_t peer_block_count)
         total+=4u+lengths[i];
     }
     {
-        int submit=stnc_core_submit_suffix_evidence(prefix,blocks,lengths,suffix_count);
-        if(submit==2){
+        stnc_core_evidence_result submit=stnc_core_submit_suffix_evidence(prefix,blocks,lengths,suffix_count);
+        if(submit==STNC_CORE_EVIDENCE_CURRENT){
             stnc_log_info("Chain retained current accepted state after valid peer suffix evidence.");
             rc=0;goto done;
         }
-        if(submit!=0)goto done;
+        if(submit!=STNC_CORE_EVIDENCE_ADOPTED)goto done;
     }
     stnc_log_info("Chain accepted a preferred bounded peer suffix.");rc=0;
 done:
@@ -1418,15 +1418,15 @@ done:
     free(payload);free(request);return rc;
 }
 
-int stnc_core_submit_suffix_evidence(
+stnc_core_evidence_result stnc_core_submit_suffix_evidence(
     uint32_t prefix_count,const uint8_t *const *blocks,const size_t *block_lengths,size_t block_count)
 {
     uint8_t *request,*payload=NULL,header[STNC_STNC_HEADER_SIZE],tip[32],work[40];
-    stnc_stnc_message response;uint64_t height;size_t capacity=STNC_STNC_HEADER_SIZE+8u,written,i;int rc=1;
-    if(prefix_count==0u||blocks==NULL||block_lengths==NULL||block_count==0u)return 1;
+    stnc_stnc_message response;uint64_t height;size_t capacity=STNC_STNC_HEADER_SIZE+8u,written,i;stnc_core_evidence_result rc=STNC_CORE_EVIDENCE_ERROR;
+    if(prefix_count==0u||blocks==NULL||block_lengths==NULL||block_count==0u)return STNC_CORE_EVIDENCE_ERROR;
     for(i=0u;i<block_count;i++){if(blocks[i]==NULL||capacity>SIZE_MAX-4u||
-        block_lengths[i]>SIZE_MAX-capacity-4u)return 1;capacity+=4u+block_lengths[i];}
-    request=(uint8_t *)malloc(capacity);if(request==NULL)return 1;
+        block_lengths[i]>SIZE_MAX-capacity-4u)return STNC_CORE_EVIDENCE_ERROR;capacity+=4u+block_lengths[i];}
+    request=(uint8_t *)malloc(capacity);if(request==NULL)return STNC_CORE_EVIDENCE_ERROR;
     if(stnc_stnc_encode_submit_suffix_evidence(prefix_count,blocks,block_lengths,block_count,
             STNC_SUFFIX_EVIDENCE_REQUEST_ID,request,capacity,&written)!=0)goto done;
     if(stnc_network_send(&chain_connection,request,written)!=0||
@@ -1434,13 +1434,13 @@ int stnc_core_submit_suffix_evidence(
        stnc_stnc_decode_header(header,sizeof(header),&response)!=0||
        response.method!=STNC_STNC_METHOD_SUBMIT_SUFFIX_EVIDENCE||
        response.request_id!=STNC_SUFFIX_EVIDENCE_REQUEST_ID)goto done;
-    if(response.code==STNC_STNC_CURRENT&&response.length==0u){rc=2;goto done;}
+    if(response.code==STNC_STNC_CURRENT&&response.length==0u){rc=STNC_CORE_EVIDENCE_CURRENT;goto done;}
     if(response.code!=STNC_STNC_OK||response.length!=STNC_STNC_BLOCK_ACCEPTED_SIZE)goto done;
     payload=(uint8_t *)malloc(response.length);if(payload==NULL)goto done;
     if(stnc_network_receive(&chain_connection,payload,response.length)!=0||
        stnc_stnc_decode_block_accepted(payload,response.length,tip,&height,work)!=0)goto done;
     memcpy(chain_state.tip_id,tip,32u);chain_state.height=height;memcpy(chain_state.cumulative_work,work,40u);
-    chain_state.block_count=height<UINT32_MAX?(uint32_t)(height+1u):UINT32_MAX;chain_state.available=1;rc=0;
+    chain_state.block_count=height<UINT32_MAX?(uint32_t)(height+1u):UINT32_MAX;chain_state.available=1;rc=STNC_CORE_EVIDENCE_ADOPTED;
 done:
     free(payload);free(request);return rc;
 }
