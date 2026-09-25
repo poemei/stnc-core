@@ -51,7 +51,7 @@ static int stnc_peers_valid_host(const char *host)
 
         if (value <= 0x20u || value >= 0x7fu ||
             value == '/' || value == '\\' ||
-            value == ':' || value == '[' || value == ']') {
+            value == '[' || value == ']') {
             return 0;
         }
     }
