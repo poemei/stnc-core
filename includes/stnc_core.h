@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "stnc_stnc.h"
+#include "stnc_peers.h"
 
 typedef enum stnc_core_state {
     STNC_CORE_STATE_UNINITIALIZED = 0,
@@ -13,6 +14,14 @@ typedef enum stnc_core_state {
     STNC_CORE_STATE_STOPPING,
     STNC_CORE_STATE_STOPPED
 } stnc_core_state;
+
+typedef struct stnc_core_peer_status {
+    int connected;
+    char host[STNC_PEER_HOST_MAX + 1u];
+    uint16_t port;
+    uint32_t capabilities;
+    uint64_t latency_ms;
+} stnc_core_peer_status;
 
 typedef struct stnc_core_chain_state {
     int available;
@@ -35,6 +44,7 @@ stnc_core_state stnc_core_get_state(void);
 
 const stnc_core_chain_state *
 stnc_core_get_chain_state(void);
+const stnc_core_peer_status *stnc_core_get_peer_status(void);
 
 int stnc_core_derive_address(
     uint16_t type,
