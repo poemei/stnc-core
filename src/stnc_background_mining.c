@@ -1,6 +1,7 @@
 #include "stnc_background_mining.h"
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "stnc_config.h"
@@ -75,10 +76,12 @@ void stnc_background_mining_tick(void)
     }
 
     if(!stratum.connected){
+        char message[512];
         if(stnc_stratum_client_connect(&stratum,config->stratum_host,config->stratum_port,identity)!=0){
             stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
         }
-        stnc_log_info("Background mining connected to STN-Stratum.");
+        if(snprintf(message,sizeof(message),"Background mining connected to STN-Stratum: %s:%u identity=%s",
+                config->stratum_host,(unsigned int)config->stratum_port,identity)>=0)stnc_log_info(message);
     }
 
     memset(&job,0,sizeof(job));
