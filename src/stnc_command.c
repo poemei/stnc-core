@@ -7,6 +7,7 @@
 #include "stnc_stnc.h"
 #include "stnc_wallet.h"
 #include "stnc_wallet_store.h"
+#include "stnc_platform.h"
 
 static void stnc_command_print_usage(void)
 {
@@ -21,6 +22,7 @@ static void stnc_command_print_usage(void)
         "  stnc-core wallet create\n"
         "  stnc-core wallet show\n"
         "  stnc-core wallet balance\n"
+        "  stnc-core transfer <stnw0_...> <units>\n"
         "  stnc-core contract state <stnc0_...>\n"
         "  stnc-core help\n"
     );
@@ -131,6 +133,36 @@ static int stnc_command_wallet(int argc,char **argv)
     stnc_wallet_clear(&key);stnc_command_print_usage();return 1;
 }
 
+
+static void stnc_print_id(const uint8_t id[32])
+{
+    size_t i;for(i=0;i<32u;i++)printf("%02x",(unsigned int)id[i]);printf("\n");
+}
+
+static int stnc_command_transfer(int argc,char **argv)
+{
+    stnc_wallet_key key;char source[STNC_WALLET_ADDRESS_SIZE+1u];uint8_t nonce[STNC_WALLET_NONCE_SIZE];
+    uint8_t transaction[STNC_WALLET_TRANSFER_SIZE];stnc_submission_result result;uint64_t units=0;size_t i;
+    if(argc!=4){stnc_command_print_usage();return 1;}
+    if(argv[3][0]=='\0')return 1;
+    for(i=0;argv[3][i]!='\0';i++){unsigned int digit;if(argv[3][i]<'0'||argv[3][i]>'9')return 1;digit=(unsigned int)(argv[3][i]-'0');if(units>(UINT64_MAX-digit)/10u)return 1;units=units*10u+digit;}
+    if(units==0){fprintf(stderr,"Transfer units must be greater than zero.\n");return 1;}
+    memset(&key,0,sizeof(key));memset(nonce,0,sizeof(nonce));memset(&result,0,sizeof(result));
+    if(stnc_wallet_store_load(&key)!=0||stnc_wallet_address(&key,source)!=0||
+       stnc_platform_random(nonce,sizeof(nonce))!=0||
+       stnc_wallet_build_transfer(&key,source,argv[2],units,nonce,transaction)!=0){
+        stnc_wallet_clear(&key);stnc_platform_secure_clear(nonce,sizeof(nonce));fprintf(stderr,"Transfer construction failed.\n");return 1;
+    }
+    stnc_wallet_clear(&key);stnc_platform_secure_clear(nonce,sizeof(nonce));
+    if(stnc_core_submit_transaction(transaction,sizeof(transaction),&result)!=0){stnc_platform_secure_clear(transaction,sizeof(transaction));fprintf(stderr,"Transfer submission failed.\n");return 1;}
+    stnc_platform_secure_clear(transaction,sizeof(transaction));
+    if(result.result==STNC_STNC_SUBMISSION_ADMITTED||result.result==STNC_STNC_SUBMISSION_DUPLICATE){
+        printf(result.result==STNC_STNC_SUBMISSION_ADMITTED?"Transfer admitted\n":"Transfer already pending\n");
+        printf("Transaction: ");stnc_print_id(result.transaction_id);return 0;
+    }
+    fprintf(stderr,"Transfer rejected: submission result %u\n",(unsigned int)result.result);return 1;
+}
+
 int stnc_command_run(int argc, char **argv)
 {
     if (argc < 2 || argv == NULL) {
@@ -152,6 +184,7 @@ int stnc_command_run(int argc, char **argv)
     if (strcmp(argv[1], "balance") == 0) return stnc_command_balance(argc, argv);
     if (strcmp(argv[1], "wallet") == 0) return stnc_command_wallet(argc, argv);
     if (strcmp(argv[1], "contract") == 0) return stnc_command_contract(argc, argv);
+    if (strcmp(argv[1], "transfer") == 0) return stnc_command_transfer(argc, argv);
 
     if (strcmp(argv[1], "help") == 0 ||
         strcmp(argv[1], "--help") == 0 ||
