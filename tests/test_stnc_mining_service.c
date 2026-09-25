@@ -35,7 +35,8 @@ int main(void)
        status.passes!=2u||status.attempts!=150u||status.solutions!=1u)return 1;
     if(stnc_mining_service_cpu_work_ms()!=20u)return 1;
     if(stnc_mining_service_cpu_rest_ms(10u)!=990u)return 1;
-    if(stnc_mining_service_cpu_rest_ms(20u)!=0u)return 1;
+    if(stnc_mining_service_cpu_rest_ms(20u)!=980u)return 1;
+    if(stnc_mining_service_cpu_rest_ms(1000u)!=0u)return 1;
 
     config.enabled=0;
     if(stnc_mining_service_configure(&config)!=0)return 1;
