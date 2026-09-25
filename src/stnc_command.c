@@ -288,7 +288,19 @@ static int stnc_command_mining(int argc,char **argv)
     }
     if(strcmp(argv[2],"enable")==0||strcmp(argv[2],"disable")==0){
         int enabled=strcmp(argv[2],"enable")==0;
-        if(argc!=3||stnc_config_set_mining_enabled(enabled)!=0){fprintf(stderr,"Mining configuration update failed.\n");return 1;}
+        if(argc!=3){stnc_command_print_usage();return 1;}
+        if(enabled){
+            stnc_wallet_key key;char wallet_address[STNC_WALLET_ADDRESS_SIZE+1u];
+            memset(&key,0,sizeof(key));
+            if(!stnc_wallet_store_exists()||stnc_wallet_store_load(&key)!=0||
+               stnc_wallet_address(&key,wallet_address)!=0){
+                stnc_wallet_clear(&key);
+                fprintf(stderr,"Background mining requires a valid stored Core wallet address. Create the wallet first.\n");
+                return 1;
+            }
+            stnc_wallet_clear(&key);
+        }
+        if(stnc_config_set_mining_enabled(enabled)!=0){fprintf(stderr,"Mining configuration update failed.\n");return 1;}
         printf("Background mining %s.\n",enabled?"enabled":"disabled");return 0;
     }
     if(strcmp(argv[2],"backend")==0){
