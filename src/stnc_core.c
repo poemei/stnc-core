@@ -24,6 +24,7 @@
 
 static stnc_core_state core_state = STNC_CORE_STATE_UNINITIALIZED;
 static stnc_network_connection chain_connection;
+static stnc_network_connection p2p_connection;
 static stnc_core_chain_state chain_state;
 static uint32_t root_peer_capabilities;
 static stnc_peer_candidates peer_candidates;
@@ -359,6 +360,175 @@ static int stnc_core_qualify_candidate(
     return 0;
 }
 
+static int stnc_core_open_selected_peer(
+    const stnc_peer_qualified *selected
+)
+{
+    stnc_stnp_hello hello;
+    stnc_stnp_state state;
+    uint8_t hello_request[STNC_STNP_HEADER_SIZE + STNC_STNP_HELLO_SIZE];
+    uint8_t hello_response[STNC_STNP_HEADER_SIZE + STNC_STNP_HELLO_SIZE];
+    uint8_t state_request[STNC_STNP_HEADER_SIZE];
+    uint8_t state_response[STNC_STNP_HEADER_SIZE + STNC_STNP_STATE_SIZE];
+    size_t written;
+    char message[512];
+    int same_state;
+
+    if (selected == NULL || !chain_state.available) {
+        stnc_log_error("Selected Chain P2P peer session prerequisites are unavailable.");
+        return 1;
+    }
+
+    memset(&hello, 0, sizeof(hello));
+    memset(&state, 0, sizeof(state));
+
+    if (stnc_network_is_connected(&p2p_connection)) {
+        stnc_network_disconnect(&p2p_connection);
+    }
+
+    if (snprintf(
+            message,
+            sizeof(message),
+            "Opening selected Chain P2P session: %s:%u",
+            selected->candidate.host,
+            (unsigned int)selected->candidate.port
+        ) < 0) {
+        return 1;
+    }
+    stnc_log_info(message);
+
+    if (stnc_network_connect(
+            &p2p_connection,
+            selected->candidate.host,
+            selected->candidate.port
+        ) != 0) {
+        stnc_log_error("Selected Chain P2P peer CONNECT failed.");
+        return 1;
+    }
+    stnc_log_info("Selected Chain P2P peer CONNECT passed.");
+
+    if (stnc_stnp_encode_hello(
+            chain_state.network_id,
+            chain_state.genesis_id,
+            1u,
+            hello_request,
+            sizeof(hello_request),
+            &written
+        ) != 0 ||
+        written != sizeof(hello_request)) {
+        stnc_log_error("Selected Chain P2P peer HELLO ENCODE failed.");
+        stnc_network_disconnect(&p2p_connection);
+        return 1;
+    }
+
+    if (stnc_network_send(&p2p_connection, hello_request, written) != 0) {
+        stnc_log_error("Selected Chain P2P peer HELLO SEND failed.");
+        stnc_network_disconnect(&p2p_connection);
+        return 1;
+    }
+
+    if (stnc_network_receive(
+            &p2p_connection,
+            hello_response,
+            sizeof(hello_response)
+        ) != 0) {
+        stnc_log_error("Selected Chain P2P peer HELLO RECEIVE failed.");
+        stnc_network_disconnect(&p2p_connection);
+        return 1;
+    }
+
+    if (stnc_stnp_decode_hello(
+            hello_response,
+            sizeof(hello_response),
+            &hello
+        ) != 0 ||
+        memcmp(hello.network_id, chain_state.network_id, 32) != 0 ||
+        memcmp(hello.genesis_id, chain_state.genesis_id, 32) != 0 ||
+        (hello.capabilities != 1u && hello.capabilities != 3u)) {
+        stnc_log_error("Selected Chain P2P peer HELLO validation failed.");
+        stnc_network_disconnect(&p2p_connection);
+        return 1;
+    }
+    stnc_log_info("Selected Chain P2P peer HELLO validation passed.");
+
+    if (stnc_stnp_encode_state(
+            state_request,
+            sizeof(state_request),
+            &written
+        ) != 0 ||
+        written != sizeof(state_request)) {
+        stnc_log_error("Selected Chain P2P peer STATE ENCODE failed.");
+        stnc_network_disconnect(&p2p_connection);
+        return 1;
+    }
+
+    if (stnc_network_send(&p2p_connection, state_request, written) != 0) {
+        stnc_log_error("Selected Chain P2P peer STATE SEND failed.");
+        stnc_network_disconnect(&p2p_connection);
+        return 1;
+    }
+    stnc_log_info("Selected Chain P2P peer STATE request sent.");
+
+    if (stnc_network_receive(
+            &p2p_connection,
+            state_response,
+            sizeof(state_response)
+        ) != 0) {
+        stnc_log_error("Selected Chain P2P peer STATE RECEIVE failed.");
+        stnc_network_disconnect(&p2p_connection);
+        return 1;
+    }
+
+    if (stnc_stnp_decode_state(
+            state_response,
+            sizeof(state_response),
+            &state
+        ) != 0) {
+        stnc_log_error("Selected Chain P2P peer STATE validation failed.");
+        stnc_network_disconnect(&p2p_connection);
+        return 1;
+    }
+
+    if (snprintf(
+            message,
+            sizeof(message),
+            "Selected Chain P2P peer STATE validated: height=%" PRIu64 " blocks=%" PRIu32,
+            state.height,
+            state.block_count
+        ) < 0) {
+        stnc_network_disconnect(&p2p_connection);
+        return 1;
+    }
+    stnc_log_info(message);
+
+    same_state =
+        state.height == chain_state.height &&
+        state.block_count == chain_state.block_count &&
+        memcmp(state.tip_id, chain_state.tip_id, 32) == 0 &&
+        memcmp(state.cumulative_work, chain_state.cumulative_work, 40) == 0;
+
+    if (same_state) {
+        stnc_log_info("Selected Chain P2P peer STATE matches current qualified STNC Chain view.");
+    } else {
+        if (snprintf(
+                message,
+                sizeof(message),
+                "Selected Chain P2P peer STATE differs from current STNC Chain view: peer_height=%" PRIu64 " peer_blocks=%" PRIu32 " local_height=%" PRIu64 " local_blocks=%" PRIu32,
+                state.height,
+                state.block_count,
+                chain_state.height,
+                chain_state.block_count
+            ) < 0) {
+            stnc_network_disconnect(&p2p_connection);
+            return 1;
+        }
+        stnc_log_info(message);
+    }
+
+    stnc_log_info("Selected Chain P2P operational session established.");
+    return 0;
+}
+
 static int stnc_core_select_peer(void)
 {
     const stnc_peer_qualified *selected;
@@ -426,6 +596,12 @@ static int stnc_core_select_peer(void)
     }
 
     stnc_log_info(message);
+
+    if (stnc_core_open_selected_peer(selected) != 0) {
+        stnc_log_error("Selected Chain P2P peer operational session failed.");
+        return 1;
+    }
+
     return 0;
 }
 
@@ -870,6 +1046,11 @@ void stnc_core_shutdown(void)
     }
 
     stnc_log_info("STNC Core shutting down.");
+
+    if (stnc_network_is_connected(&p2p_connection)) {
+        stnc_network_disconnect(&p2p_connection);
+        stnc_log_info("Chain P2P connection closed.");
+    }
 
     if (stnc_network_is_connected(&chain_connection)) {
         stnc_network_disconnect(&chain_connection);
