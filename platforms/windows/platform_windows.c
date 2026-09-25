@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <winhttp.h>
 #include <bcrypt.h>
+#include <aclapi.h>
 
 #include <limits.h>
 #include <stddef.h>
@@ -514,6 +515,23 @@ int stnc_platform_sha256(const unsigned char *buffer,size_t length,unsigned char
 }
 
 void stnc_platform_secure_clear(void *buffer,size_t length){if(buffer!=NULL&&length!=0)SecureZeroMemory(buffer,length);}
+
+int stnc_platform_protect_private_file(const char *path)
+{
+    HANDLE token=NULL;DWORD size=0;TOKEN_USER *user=NULL;EXPLICIT_ACCESSA access;PACL acl=NULL;DWORD result=ERROR_SUCCESS;
+    if(path==NULL||path[0]=='\0')return 1;
+    if(!OpenProcessToken(GetCurrentProcess(),TOKEN_QUERY,&token))return 1;
+    GetTokenInformation(token,TokenUser,NULL,0,&size);
+    if(GetLastError()!=ERROR_INSUFFICIENT_BUFFER){CloseHandle(token);return 1;}
+    user=(TOKEN_USER *)HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,size);
+    if(user==NULL){CloseHandle(token);return 1;}
+    if(!GetTokenInformation(token,TokenUser,user,size,&size)){HeapFree(GetProcessHeap(),0,user);CloseHandle(token);return 1;}
+    ZeroMemory(&access,sizeof(access));access.grfAccessPermissions=GENERIC_ALL;access.grfAccessMode=SET_ACCESS;access.grfInheritance=NO_INHERITANCE;
+    access.Trustee.TrusteeForm=TRUSTEE_IS_SID;access.Trustee.TrusteeType=TRUSTEE_IS_USER;access.Trustee.ptstrName=(LPSTR)user->User.Sid;
+    result=SetEntriesInAclA(1,&access,NULL,&acl);
+    if(result==ERROR_SUCCESS)result=SetNamedSecurityInfoA((LPSTR)path,SE_FILE_OBJECT,DACL_SECURITY_INFORMATION|PROTECTED_DACL_SECURITY_INFORMATION,NULL,NULL,acl,NULL);
+    if(acl!=NULL)LocalFree(acl);HeapFree(GetProcessHeap(),0,user);CloseHandle(token);return result==ERROR_SUCCESS?0:1;
+}
 
 uint64_t stnc_platform_monotonic_ms(void)
 {
