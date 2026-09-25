@@ -15,6 +15,9 @@
 #define STNC_DEFAULT_PORT 18473
 #define STNC_DEFAULT_ROOT_PEER "chain01.stn-chain.org"
 #define STNC_DEFAULT_ROOT_PEER_PORT 18474
+#define STNC_DEFAULT_MINING_ENABLED 0
+#define STNC_DEFAULT_MINING_BACKEND "automatic"
+#define STNC_DEFAULT_MINING_CPU_LIMIT_PERCENT 2u
 
 #define STNC_CONFIG_PATH_MAX 1024
 #define STNC_CONFIG_FILE_MAX 4096
@@ -55,6 +58,9 @@ static int stnc_config_set_defaults(void)
     );
 
     active_config.root_peer_port = STNC_DEFAULT_ROOT_PEER_PORT;
+    active_config.mining_enabled = STNC_DEFAULT_MINING_ENABLED;
+    memcpy(active_config.mining_backend, STNC_DEFAULT_MINING_BACKEND, sizeof(STNC_DEFAULT_MINING_BACKEND));
+    active_config.mining_cpu_limit_percent = STNC_DEFAULT_MINING_CPU_LIMIT_PERCENT;
 
     return 0;
 }
@@ -104,7 +110,10 @@ static int stnc_config_write_defaults(const char *path)
             "    \"peer\": \"%s\",\n"
             "    \"port\": %u,\n"
             "    \"root_peer\": \"%s\",\n"
-            "    \"root_peer_port\": %u\n"
+            "    \"root_peer_port\": %u,\n"
+            "    \"mining_enabled\": false,\n"
+            "    \"mining_backend\": \"automatic\",\n"
+            "    \"mining_cpu_limit_percent\": 2\n"
             "}\n",
             active_config.peer,
             (unsigned int)active_config.port,
@@ -289,6 +298,39 @@ static int stnc_config_parse_named_port(
     return 0;
 }
 
+static int stnc_config_parse_named_bool(const char *json,const char *name,int *result)
+{
+    const char *value=stnc_config_find_value(json,name);
+    if(value==NULL||result==NULL)return 1;
+    if(strncmp(value,"true",4u)==0){*result=1;return 0;}
+    if(strncmp(value,"false",5u)==0){*result=0;return 0;}
+    return 1;
+}
+
+static int stnc_config_parse_mining_backend(const char *json,char *backend,size_t capacity)
+{
+    const char *value=stnc_config_find_value(json,"mining_backend");const char *end;size_t length;
+    if(value==NULL||backend==NULL||capacity==0u||*value!='\"')return 1;
+    value++;end=strchr(value,'\"');if(end==NULL)return 1;length=(size_t)(end-value);
+    if(length==0u||length>=capacity)return 1;
+    if(!((length==9u&&memcmp(value,"automatic",9u)==0)||
+         (length==3u&&memcmp(value,"cpu",3u)==0)||
+         (length==3u&&memcmp(value,"gpu",3u)==0)||
+         (length==8u&&memcmp(value,"usb-asic",8u)==0)))return 1;
+    memcpy(backend,value,length);backend[length]='\0';return 0;
+}
+
+static int stnc_config_parse_cpu_limit(const char *json,unsigned int *limit)
+{
+    const char *value=stnc_config_find_value(json,"mining_cpu_limit_percent");char *end;unsigned long parsed;
+    if(value==NULL||limit==NULL||!isdigit((unsigned char)*value))return 1;
+    errno=0;parsed=strtoul(value,&end,10);
+    if(errno!=0||end==value||parsed==0u||parsed>2u)return 1;
+    while(*end!='\0'&&isspace((unsigned char)*end))end++;
+    if(*end!=','&&*end!='}')return 1;
+    *limit=(unsigned int)parsed;return 0;
+}
+
 static int stnc_config_load(const char *path)
 {
     FILE *file;
@@ -381,6 +423,18 @@ static int stnc_config_load(const char *path)
             ) != 0) {
             return 1;
         }
+    }
+
+    if(stnc_config_find_value(json,"mining_enabled")==NULL&&
+       stnc_config_find_value(json,"mining_backend")==NULL&&
+       stnc_config_find_value(json,"mining_cpu_limit_percent")==NULL){
+        active_config.mining_enabled=STNC_DEFAULT_MINING_ENABLED;
+        memcpy(active_config.mining_backend,STNC_DEFAULT_MINING_BACKEND,sizeof(STNC_DEFAULT_MINING_BACKEND));
+        active_config.mining_cpu_limit_percent=STNC_DEFAULT_MINING_CPU_LIMIT_PERCENT;
+    }else{
+        if(stnc_config_parse_named_bool(json,"mining_enabled",&active_config.mining_enabled)!=0||
+           stnc_config_parse_mining_backend(json,active_config.mining_backend,sizeof(active_config.mining_backend))!=0||
+           stnc_config_parse_cpu_limit(json,&active_config.mining_cpu_limit_percent)!=0)return 1;
     }
 
     return 0;
