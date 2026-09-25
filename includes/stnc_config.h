@@ -36,6 +36,11 @@ int stnc_config_init(void);
  */
 const stnc_config *stnc_config_get(void);
 
+int stnc_config_set_mining_enabled(int enabled);
+int stnc_config_set_mining_backend(const char *backend);
+int stnc_config_set_mining_cpu_limit(unsigned int percent);
+int stnc_config_reload(void);
+
 /*
  * Release configuration state.
  */
