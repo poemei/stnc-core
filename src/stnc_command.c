@@ -30,6 +30,9 @@ static void stnc_command_print_usage(void)
         "  stnc-core wallet balance\n"
         "  stnc-core transfer <stnw0_...> <units>\n"
         "  stnc-core contract state <stnc0_...>\n"
+        "  stnc-core mining status\n"
+        "  stnc-core mining template\n"
+        "  stnc-core mining check\n"
         "  stnc-core mining mine-once <attempts>\n"
         "  stnc-core help\n"
     );
@@ -171,6 +174,14 @@ static int stnc_command_mining(int argc,char **argv)
             stnc_core_mining_template_release(payload);fprintf(stderr,"Mining template unavailable or unsupported.\n");return 1;
         }
         memcpy(block,work.block,sizeof(block));
+        if(memcmp(block,work.parent_id,32u)!=0){
+            stnc_core_mining_template_release(payload);fprintf(stderr,"Mining template parent mismatch.\n");return 1;
+        }
+        {stnc_mining_context context;
+        if(stnc_core_mining_context(&context)!=0||!context.template_available||
+           memcmp(context.tip_id,work.parent_id,32u)!=0||memcmp(context.target,block+120u,32u)!=0){
+            stnc_core_mining_template_release(payload);fprintf(stderr,"Mining template does not match current Chain context.\n");return 1;
+        }}
         {stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
         if(base!=STNC_CORE_WORK_BASE_CURRENT){stnc_core_mining_template_release(payload);
             fprintf(stderr,base==STNC_CORE_WORK_BASE_STALE?"Mining work base is stale.\n":"Mining work base check failed.\n");return 1;}}
