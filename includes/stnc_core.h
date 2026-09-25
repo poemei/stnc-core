@@ -15,6 +15,15 @@ typedef enum stnc_core_state {
     STNC_CORE_STATE_STOPPED
 } stnc_core_state;
 
+typedef struct stnc_core_runtime_status {
+    int chain_connected;
+    int chain_state_available;
+    int p2p_connected;
+    size_t candidate_count;
+    size_t qualified_count;
+    uint32_t root_peer_capabilities;
+} stnc_core_runtime_status;
+
 typedef struct stnc_core_peer_status {
     int connected;
     char host[STNC_PEER_HOST_MAX + 1u];
@@ -45,6 +54,7 @@ stnc_core_state stnc_core_get_state(void);
 const stnc_core_chain_state *
 stnc_core_get_chain_state(void);
 const stnc_core_peer_status *stnc_core_get_peer_status(void);
+void stnc_core_get_runtime_status(stnc_core_runtime_status *status);
 
 int stnc_core_derive_address(
     uint16_t type,
