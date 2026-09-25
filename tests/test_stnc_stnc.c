@@ -105,6 +105,29 @@ static int check_submission(void)
     return 0;
 }
 
+static int check_block_evidence(void)
+{
+    uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE]={0};
+    uint8_t frame[STNC_STNC_HEADER_SIZE+STNC_STNC_BLOCK_HEADER_SIZE];
+    uint8_t accepted[STNC_STNC_BLOCK_ACCEPTED_SIZE]={0};
+    uint8_t tip[32],work[40];
+    uint64_t height=0;
+    size_t written=0,i;
+    block[0]=0u;block[1]=3u;
+    for(i=0;i<32u;i++)accepted[i]=(uint8_t)i;
+    accepted[39]=42u;
+    for(i=0;i<40u;i++)accepted[40u+i]=(uint8_t)(0x80u+i);
+    if(stnc_stnc_encode_submit_block_evidence(block,sizeof(block),UINT64_C(11),
+            frame,sizeof(frame),&written)!=0||written!=sizeof(frame)||
+       frame[8]!=0x10u||frame[9]!=0x06u||
+       memcmp(frame+STNC_STNC_HEADER_SIZE,block,sizeof(block))!=0)return 1;
+    if(stnc_stnc_decode_block_accepted(accepted,sizeof(accepted),tip,&height,work)!=0||
+       height!=UINT64_C(42)||memcmp(tip,accepted,32u)!=0||memcmp(work,accepted+40u,40u)!=0)return 1;
+    if(stnc_stnc_encode_submit_block_evidence(block,STNC_STNC_BLOCK_HEADER_SIZE-1u,UINT64_C(11),
+            frame,sizeof(frame),&written)==0||written!=0u)return 1;
+    return 0;
+}
+
 int main(void)
 {
     uint8_t frame[STNC_STNC_DERIVE_FRAME_MAX];
@@ -129,7 +152,7 @@ int main(void)
         return 1;
     }
 
-    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0) {
+    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0 || check_block_evidence() != 0) {
         return 1;
     }
 
