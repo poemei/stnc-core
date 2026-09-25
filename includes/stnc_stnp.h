@@ -12,12 +12,18 @@
 #define STNC_STNP_STATE 2u
 #define STNC_STNP_GET_HEADERS 3u
 #define STNC_STNP_HEADERS 4u
+#define STNC_STNP_GET_BLOCK 5u
+#define STNC_STNP_BLOCK 6u
 #define STNC_STNP_GET_PEERS 7u
 #define STNC_STNP_PEERS 8u
 #define STNC_STNP_HEADER_WIRE_SIZE 168u
 #define STNC_STNP_HEADERS_MAX 64u
 #define STNC_STNP_HEADERS_PAYLOAD_MAX (8u + (STNC_STNP_HEADER_WIRE_SIZE * STNC_STNP_HEADERS_MAX))
 #define STNC_STNP_HEADERS_FRAME_MAX (STNC_STNP_HEADER_SIZE + STNC_STNP_HEADERS_PAYLOAD_MAX)
+#define STNC_STNP_BLOCK_INDEX_SIZE 4u
+#define STNC_STNP_BLOCK_BODY_MAX (1024u * 1024u)
+#define STNC_STNP_BLOCK_PAYLOAD_MAX (STNC_STNP_BLOCK_INDEX_SIZE + STNC_STNP_BLOCK_BODY_MAX)
+#define STNC_STNP_BLOCK_FRAME_MAX (STNC_STNP_HEADER_SIZE + STNC_STNP_BLOCK_PAYLOAD_MAX)
 #define STNC_STNP_PEER_MAX 64u
 #define STNC_STNP_PEERS_PAYLOAD_MAX (2u + (6u * STNC_STNP_PEER_MAX))
 #define STNC_STNP_PEERS_FRAME_MAX (STNC_STNP_HEADER_SIZE + STNC_STNP_PEERS_PAYLOAD_MAX)
@@ -91,6 +97,27 @@ int stnc_stnp_decode_headers(
     size_t length,
     uint32_t *start,
     uint32_t *count
+);
+
+int stnc_stnp_encode_get_block(
+    uint32_t index,
+    uint8_t *buffer,
+    size_t capacity,
+    size_t *written
+);
+
+int stnc_stnp_decode_block_header(
+    const uint8_t *buffer,
+    size_t length,
+    size_t *payload_length
+);
+
+int stnc_stnp_decode_block(
+    const uint8_t *buffer,
+    size_t length,
+    uint32_t *index,
+    const uint8_t **block,
+    size_t *block_length
 );
 
 int stnc_stnp_encode_get_peers(
