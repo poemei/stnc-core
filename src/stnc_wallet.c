@@ -3,7 +3,7 @@
 
 #include <string.h>
 
-int stn_ed25519_publickey(const uint8_t private_key[32],uint8_t public_key[32]);
+int stnc_ed25519_publickey(const uint8_t private_key[32],uint8_t public_key[32]);
 int stn_ed25519_sign(const uint8_t *,size_t,const uint8_t[32],const uint8_t[32],uint8_t[64]);
 
 static int nibble(unsigned char c){if(c>='0'&&c<='9')return c-'0';if(c>='a'&&c<='f')return c-'a'+10;return -1;}
@@ -24,7 +24,7 @@ int stnc_wallet_generate(stnc_wallet_key *key)
     if(key==NULL)return 1;
     memset(&generated,0,sizeof(generated));
     if(stnc_platform_random(generated.private_key,sizeof(generated.private_key))!=0 ||
-       stn_ed25519_publickey(generated.private_key,generated.public_key)!=0){stnc_wallet_clear(&generated);return 1;}
+       stnc_ed25519_publickey(generated.private_key,generated.public_key)!=0){stnc_wallet_clear(&generated);return 1;}
     *key=generated;return 0;
 }
 void stnc_wallet_clear(stnc_wallet_key *key){if(key!=NULL)stnc_platform_secure_clear(key,sizeof(*key));}
