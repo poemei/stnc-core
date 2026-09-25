@@ -32,6 +32,10 @@
 #define STNC_STNC_METHOD_SUBMIT_BLOCK_EVIDENCE 0x1006u
 #define STNC_STNC_METHOD_SUBMIT_HISTORY_EVIDENCE 0x1007u
 #define STNC_STNC_METHOD_SUBMIT_SUFFIX_EVIDENCE 0x1008u
+#define STNC_STNC_METHOD_SUFFIX_STAGE_BEGIN 0x1009u
+#define STNC_STNC_METHOD_SUFFIX_STAGE_APPEND 0x100au
+#define STNC_STNC_METHOD_SUFFIX_STAGE_COMMIT 0x100bu
+#define STNC_STNC_METHOD_SUFFIX_STAGE_ABORT 0x100cu
 #define STNC_STNC_BLOCK_HEADER_SIZE 168u
 #define STNC_STNC_BLOCK_MAX_SIZE 1070328u
 #define STNC_STNC_BLOCK_ACCEPTED_SIZE 80u
@@ -190,6 +194,20 @@ int stnc_stnc_encode_submit_history_evidence(
 int stnc_stnc_encode_submit_suffix_evidence(
     uint32_t prefix_count,const uint8_t *const *blocks,const size_t *block_lengths,
     size_t block_count,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written
+);
+
+int stnc_stnc_encode_suffix_stage_begin(
+    uint32_t prefix_count,uint32_t suffix_count,uint64_t request_id,
+    uint8_t *buffer,size_t capacity,size_t *written
+);
+
+int stnc_stnc_encode_suffix_stage_append(
+    uint32_t start,const uint8_t *const *blocks,const size_t *block_lengths,
+    size_t block_count,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written
+);
+
+int stnc_stnc_encode_suffix_stage_control(
+    uint16_t method,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written
 );
 
 int stnc_stnc_decode_block_accepted(
