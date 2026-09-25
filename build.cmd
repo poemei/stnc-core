@@ -180,7 +180,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-cl /nologo /W4 /TC /Iincludes tests\test_stnc_wallet.c src\stnc_wallet.c src\stnc_core.c src\stnc_log.c src\stnc_config.c src\stnc_directory.c src\stnc_http.c src\stnc_network.c src\stnc_peers.c src\stnc_peer_select.c src\stnc_stnc.c src\stnc_stnp.c platforms\windows\platform_windows.c src\crypto\ed25519_donna\ed25519_provider.c /Fe:build\test-stnc-wallet.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_wallet.c src\stnc_wallet.c src\stnc_core.c src\stnc_background_mining.c src\stnc_mining_service.c src\stnc_mining.c src\stnc_wallet_store.c src\stnc_log.c src\stnc_config.c src\stnc_directory.c src\stnc_http.c src\stnc_network.c src\stnc_peers.c src\stnc_peer_select.c src\stnc_stnc.c src\stnc_stnp.c platforms\windows\platform_windows.c src\crypto\ed25519_donna\ed25519_provider.c /Fe:build\test-stnc-wallet.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
 if errorlevel 1 (
     echo.
     echo WALLET TEST BUILD FAILED
@@ -194,7 +194,7 @@ if errorlevel 1 (
 )
 
 
-cl /nologo /W4 /TC /D_CRT_SECURE_NO_WARNINGS /Iincludes tests\test_stnc_wallet_store.c src\stnc_wallet_store.c src\stnc_wallet.c platforms\windows\platform_windows.c src\crypto\ed25519_donna\ed25519_provider.c src\stnc_core.c src\stnc_log.c src\stnc_config.c src\stnc_directory.c src\stnc_http.c src\stnc_network.c src\stnc_peers.c src\stnc_peer_select.c src\stnc_stnc.c src\stnc_stnp.c /Fe:build\test-stnc-wallet-store.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
+cl /nologo /W4 /TC /D_CRT_SECURE_NO_WARNINGS /Iincludes tests\test_stnc_wallet_store.c src\stnc_wallet_store.c src\stnc_wallet.c platforms\windows\platform_windows.c src\crypto\ed25519_donna\ed25519_provider.c src\stnc_core.c src\stnc_background_mining.c src\stnc_mining_service.c src\stnc_mining.c src\stnc_log.c src\stnc_config.c src\stnc_directory.c src\stnc_http.c src\stnc_network.c src\stnc_peers.c src\stnc_peer_select.c src\stnc_stnc.c src\stnc_stnp.c /Fe:build\test-stnc-wallet-store.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
 if errorlevel 1 (
     echo.
     echo WALLET STORE TEST BUILD FAILED
