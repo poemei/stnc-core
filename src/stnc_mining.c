@@ -26,6 +26,8 @@ stnc_mining_result stnc_mining_search(uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE]
 {
     uint8_t hash[32],target[32];uint64_t i,nonce;
     if(block==NULL||found_nonce==NULL||digest==NULL||attempts==0u)return STNC_MINING_ERROR;
+    *found_nonce=0u;
+    memset(digest,0,32u);
     memcpy(target,block+120u,32u);
     for(i=0u;i<attempts;i++){
         if(i>UINT64_MAX-first_nonce)return STNC_MINING_EXHAUSTED;
