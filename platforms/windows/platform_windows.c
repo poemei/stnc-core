@@ -518,6 +518,36 @@ void stnc_platform_secure_clear(void *buffer,size_t length){if(buffer!=NULL&&len
 
 char stnc_platform_path_separator(void){return '\\';}
 
+
+int stnc_platform_write_private_file(const char *path,const unsigned char *buffer,size_t length)
+{
+    HANDLE token=NULL,file=INVALID_HANDLE_VALUE;DWORD size=0,written=0;TOKEN_USER *user=NULL;
+    EXPLICIT_ACCESSA access;PACL acl=NULL;SECURITY_DESCRIPTOR descriptor;SECURITY_ATTRIBUTES attributes;
+    DWORD result=ERROR_SUCCESS;int rc=1;
+    if(path==NULL||path[0]=='\0'||buffer==NULL||length==0u||length>(size_t)MAXDWORD)return 1;
+    if(!OpenProcessToken(GetCurrentProcess(),TOKEN_QUERY,&token))goto done;
+    GetTokenInformation(token,TokenUser,NULL,0,&size);
+    if(GetLastError()!=ERROR_INSUFFICIENT_BUFFER)goto done;
+    user=(TOKEN_USER *)HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,size);if(user==NULL)goto done;
+    if(!GetTokenInformation(token,TokenUser,user,size,&size))goto done;
+    ZeroMemory(&access,sizeof(access));access.grfAccessPermissions=GENERIC_ALL;access.grfAccessMode=SET_ACCESS;
+    access.grfInheritance=NO_INHERITANCE;access.Trustee.TrusteeForm=TRUSTEE_IS_SID;
+    access.Trustee.TrusteeType=TRUSTEE_IS_USER;access.Trustee.ptstrName=(LPSTR)user->User.Sid;
+    result=SetEntriesInAclA(1,&access,NULL,&acl);if(result!=ERROR_SUCCESS)goto done;
+    if(!InitializeSecurityDescriptor(&descriptor,SECURITY_DESCRIPTOR_REVISION))goto done;
+    if(!SetSecurityDescriptorDacl(&descriptor,TRUE,acl,FALSE))goto done;
+    attributes.nLength=sizeof(attributes);attributes.lpSecurityDescriptor=&descriptor;attributes.bInheritHandle=FALSE;
+    file=CreateFileA(path,GENERIC_WRITE,0,&attributes,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,NULL);
+    if(file==INVALID_HANDLE_VALUE)goto done;
+    if(!WriteFile(file,buffer,(DWORD)length,&written,NULL)||written!=(DWORD)length)goto done;
+    if(!FlushFileBuffers(file))goto done;
+    rc=0;
+done:
+    if(file!=INVALID_HANDLE_VALUE){CloseHandle(file);if(rc!=0)DeleteFileA(path);}
+    if(acl!=NULL)LocalFree(acl);if(user!=NULL)HeapFree(GetProcessHeap(),0,user);if(token!=NULL)CloseHandle(token);
+    return rc;
+}
+
 int stnc_platform_protect_private_file(const char *path)
 {
     HANDLE token=NULL;DWORD size=0;TOKEN_USER *user=NULL;EXPLICIT_ACCESSA access;PACL acl=NULL;DWORD result=ERROR_SUCCESS;
