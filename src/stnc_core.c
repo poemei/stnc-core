@@ -20,6 +20,7 @@
 #define STNC_BALANCE_REQUEST_ID UINT64_C(3)
 #define STNC_CONTRACT_STATE_REQUEST_ID UINT64_C(4)
 #define STNC_SUBMIT_TRANSACTION_REQUEST_ID UINT64_C(5)
+#define STNC_PENDING_REQUEST_ID UINT64_C(6)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
@@ -1333,6 +1334,25 @@ int stnc_core_contract_state(const char *contract, stnc_contract_state *state)
     if (state == NULL || stnc_core_address_query(STNC_STNC_METHOD_CONTRACT_STATE,contract,STNC_CONTRACT_STATE_REQUEST_ID,
         payload,sizeof(payload),sizeof(payload)) != 0) return 1;
     return stnc_stnc_decode_contract_state(payload,sizeof(payload),state);
+}
+
+int stnc_core_pending(stnc_pending_state *state)
+{
+    stnc_stnc_message request,response;
+    uint8_t request_buffer[STNC_STNC_HEADER_SIZE],response_header[STNC_STNC_HEADER_SIZE],payload[STNC_STNC_PENDING_SIZE];
+    size_t written;
+    if(state==NULL||core_state==STNC_CORE_STATE_UNINITIALIZED||core_state==STNC_CORE_STATE_STOPPED||
+       !stnc_network_is_connected(&chain_connection))return 1;
+    memset(&request,0,sizeof(request));memset(&response,0,sizeof(response));
+    request.kind=STNC_STNC_REQUEST;request.method=STNC_STNC_METHOD_PENDING;request.code=STNC_STNC_OK;request.request_id=STNC_PENDING_REQUEST_ID;
+    if(stnc_stnc_encode(&request,request_buffer,sizeof(request_buffer),&written)!=0||
+       stnc_network_send(&chain_connection,request_buffer,written)!=0||
+       stnc_network_receive(&chain_connection,response_header,sizeof(response_header))!=0||
+       stnc_stnc_decode_header(response_header,sizeof(response_header),&response)!=0||
+       response.method!=STNC_STNC_METHOD_PENDING||response.request_id!=STNC_PENDING_REQUEST_ID||
+       response.code!=STNC_STNC_OK||response.length!=sizeof(payload)||
+       stnc_network_receive(&chain_connection,payload,sizeof(payload))!=0)return 1;
+    return stnc_stnc_decode_pending(payload,sizeof(payload),state);
 }
 
 int stnc_core_submit_transaction(const uint8_t *transaction,size_t transaction_length,stnc_submission_result *result)
