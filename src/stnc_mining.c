@@ -45,6 +45,8 @@ stnc_mining_result stnc_mining_search(uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE]
             return STNC_MINING_FOUND;
         }
     }
+    *found_nonce=0u;
+    memset(digest,0,32u);
     stnc_platform_secure_clear(hash,sizeof(hash));
     stnc_platform_secure_clear(target,sizeof(target));
     return STNC_MINING_EXHAUSTED;
