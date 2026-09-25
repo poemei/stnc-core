@@ -208,7 +208,20 @@ static int stnc_command_mining(int argc,char **argv)
                 stnc_core_mining_template_release(payload);fprintf(stderr,"Mining solution verification failed.\n");return 1;
             }}
             if(!submit_solution){
-                printf("Mining scan found valid work\n  Nonce: %" PRIu64 "\n  Hash: ",nonce);
+                stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
+                if(base!=STNC_CORE_WORK_BASE_CURRENT){
+                    stnc_core_mining_template_release(payload);
+                    fprintf(stderr,base==STNC_CORE_WORK_BASE_STALE?
+                        "Mining scan found valid work after its base became stale.\n":
+                        "Mining scan final work-base check failed.\n");
+                    return 1;
+                }
+                if(!checked.template_available||memcmp(checked.tip_id,work.parent_id,32u)!=0||
+                   memcmp(checked.target,block+120u,32u)!=0){
+                    stnc_core_mining_template_release(payload);
+                    fprintf(stderr,"Mining scan found valid work against changed Chain context.\n");return 1;
+                }
+                printf("Mining scan found valid current work\n  Nonce: %" PRIu64 "\n  Hash: ",nonce);
                 for(j=0u;j<32u;j++)printf("%02x",(unsigned int)digest[j]);
                 printf("\n");
                 stnc_core_mining_template_release(payload);return 0;
