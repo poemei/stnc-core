@@ -65,7 +65,8 @@ unsigned int stnc_mining_service_cpu_work_ms(void)
 unsigned int stnc_mining_service_cpu_rest_ms(unsigned int elapsed_work_ms)
 {
     unsigned int work=stnc_mining_service_cpu_work_ms();
-    if(elapsed_work_ms>=work||work>=STNC_MINING_CPU_WINDOW_MS)return 0u;
+    if(work==0u||work>=STNC_MINING_CPU_WINDOW_MS)return 0u;
+    if(elapsed_work_ms>=STNC_MINING_CPU_WINDOW_MS)return 0u;
     return STNC_MINING_CPU_WINDOW_MS-elapsed_work_ms;
 }
 
