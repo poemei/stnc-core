@@ -519,6 +519,73 @@ int stnc_config_init(void)
     return 0;
 }
 
+static int stnc_config_write_active(void)
+{
+    char path[STNC_CONFIG_PATH_MAX],temporary[STNC_CONFIG_PATH_MAX];
+    FILE *file;size_t length;
+    if(!config_initialized||stnc_config_build_path(path,sizeof(path))!=0)return 1;
+    length=strlen(path);if(length+5u>=sizeof(temporary))return 1;
+    memcpy(temporary,path,length);memcpy(temporary+length,".tmp",5u);
+    file=fopen(temporary,"wb");if(file==NULL)return 1;
+    if(fprintf(file,
+        "{\n"
+        "    \"peer\": \"%s\",\n"
+        "    \"port\": %u,\n"
+        "    \"root_peer\": \"%s\",\n"
+        "    \"root_peer_port\": %u,\n"
+        "    \"mining_enabled\": %s,\n"
+        "    \"mining_backend\": \"%s\",\n"
+        "    \"mining_cpu_limit_percent\": %u,\n"
+        "    \"stratum_host\": \"%s\",\n"
+        "    \"stratum_port\": %u\n"
+        "}\n",
+        active_config.peer,(unsigned int)active_config.port,
+        active_config.root_peer,(unsigned int)active_config.root_peer_port,
+        active_config.mining_enabled?"true":"false",active_config.mining_backend,
+        active_config.mining_cpu_limit_percent,active_config.stratum_host,
+        (unsigned int)active_config.stratum_port)<0||fclose(file)!=0){
+        fclose(file);remove(temporary);return 1;
+    }
+    if(remove(path)!=0&&errno!=ENOENT){remove(temporary);return 1;}
+    if(rename(temporary,path)!=0){remove(temporary);return 1;}
+    return 0;
+}
+
+static int stnc_config_backend_valid(const char *backend)
+{
+    return backend!=NULL&&(strcmp(backend,"automatic")==0||strcmp(backend,"cpu")==0||
+        strcmp(backend,"gpu")==0||strcmp(backend,"usb-asic")==0);
+}
+
+int stnc_config_set_mining_enabled(int enabled)
+{
+    int previous;if(!config_initialized||(enabled!=0&&enabled!=1))return 1;
+    previous=active_config.mining_enabled;active_config.mining_enabled=enabled;
+    if(stnc_config_write_active()!=0){active_config.mining_enabled=previous;return 1;}return 0;
+}
+int stnc_config_set_mining_backend(const char *backend)
+{
+    char previous[sizeof(active_config.mining_backend)];size_t length;
+    if(!config_initialized||!stnc_config_backend_valid(backend))return 1;
+    length=strlen(backend);if(length>=sizeof(active_config.mining_backend))return 1;
+    memcpy(previous,active_config.mining_backend,sizeof(previous));memset(active_config.mining_backend,0,sizeof(active_config.mining_backend));
+    memcpy(active_config.mining_backend,backend,length+1u);
+    if(stnc_config_write_active()!=0){memcpy(active_config.mining_backend,previous,sizeof(previous));return 1;}return 0;
+}
+int stnc_config_set_mining_cpu_limit(unsigned int percent)
+{
+    unsigned int previous;if(!config_initialized||percent==0u||percent>2u)return 1;
+    previous=active_config.mining_cpu_limit_percent;active_config.mining_cpu_limit_percent=percent;
+    if(stnc_config_write_active()!=0){active_config.mining_cpu_limit_percent=previous;return 1;}return 0;
+}
+int stnc_config_reload(void)
+{
+    char path[STNC_CONFIG_PATH_MAX];stnc_config previous;
+    if(!config_initialized||stnc_config_build_path(path,sizeof(path))!=0)return 1;
+    previous=active_config;memset(&active_config,0,sizeof(active_config));
+    if(stnc_config_load(path)!=0){active_config=previous;return 1;}return 0;
+}
+
 const stnc_config *stnc_config_get(void)
 {
     if (!config_initialized) {
