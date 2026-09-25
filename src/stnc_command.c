@@ -15,6 +15,8 @@ static void stnc_command_print_usage(void)
         "  stnc-core address identity <source>\n"
         "  stnc-core address contract <source>\n"
         "  stnc-core address wallet <source>\n"
+        "  stnc-core balance <stnw0_...>\n"
+        "  stnc-core contract state <stnc0_...>\n"
         "  stnc-core help\n"
     );
 }
@@ -78,6 +80,32 @@ static int stnc_command_address(int argc, char **argv)
     return 0;
 }
 
+
+static int stnc_command_balance(int argc, char **argv)
+{
+    uint64_t units;
+    if (argc != 3) { stnc_command_print_usage(); return 1; }
+    if (stnc_core_balance(argv[2], &units) != 0) {
+        fprintf(stderr, "Balance query failed.\n"); return 1;
+    }
+    printf("%" PRIu64 "\n", units);
+    return 0;
+}
+
+static int stnc_command_contract(int argc, char **argv)
+{
+    stnc_contract_state state;
+    if (argc != 4 || strcmp(argv[2], "state") != 0) { stnc_command_print_usage(); return 1; }
+    if (stnc_core_contract_state(argv[3], &state) != 0) {
+        fprintf(stderr, "Contract state query failed.\n"); return 1;
+    }
+    printf("Contract state\n  State: %u\n  Type: %u\n  Sequence: %" PRIu64
+           "\n  Created: %" PRIu64 "\n  Participants: %u\n  Terms bytes: %" PRIu32 "\n",
+        (unsigned int)state.state,(unsigned int)state.type,state.sequence,state.created_at,
+        (unsigned int)state.participant_count,state.terms_length);
+    return 0;
+}
+
 int stnc_command_run(int argc, char **argv)
 {
     if (argc < 2 || argv == NULL) {
@@ -95,6 +123,9 @@ int stnc_command_run(int argc, char **argv)
     if (strcmp(argv[1], "address") == 0) {
         return stnc_command_address(argc, argv);
     }
+
+    if (strcmp(argv[1], "balance") == 0) return stnc_command_balance(argc, argv);
+    if (strcmp(argv[1], "contract") == 0) return stnc_command_contract(argc, argv);
 
     if (strcmp(argv[1], "help") == 0 ||
         strcmp(argv[1], "--help") == 0 ||
