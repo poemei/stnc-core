@@ -203,6 +203,27 @@ static int check_staged_suffix(void)
     return 0;
 }
 
+static int check_submit_work(void)
+{
+    uint8_t parent[32]={0},work[32]={0},block[STNC_STNC_BLOCK_HEADER_SIZE]={0};
+    uint8_t frame[STNC_STNC_HEADER_SIZE+STNC_STNC_MINING_SUBMISSION_PREFIX_SIZE+STNC_STNC_BLOCK_HEADER_SIZE];
+    const char miner[]="stn0_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    size_t written=0u,i;
+    for(i=0u;i<32u;i++){parent[i]=(uint8_t)i;work[i]=(uint8_t)(0xffu-i);}
+    if(stnc_stnc_encode_submit_work(parent,work,miner,block,sizeof(block),UINT64_C(22),
+            frame,sizeof(frame),&written)!=0||written!=sizeof(frame)||
+       frame[8]!=0x20u||frame[9]!=0x03u||
+       memcmp(frame+24u,parent,32u)!=0||memcmp(frame+56u,work,32u)!=0||
+       frame[88]!=0u||frame[89]!=0u||frame[90]!=0u||frame[91]!=STNC_STNC_BLOCK_HEADER_SIZE||
+       memcmp(frame+92u,miner,STNC_STNC_MINER_IDENTITY_SIZE)!=0||
+       memcmp(frame+24u+STNC_STNC_MINING_SUBMISSION_PREFIX_SIZE,block,sizeof(block))!=0)return 1;
+    if(stnc_stnc_encode_submit_work(parent,work,"stnw0_bad",block,sizeof(block),UINT64_C(22),
+            frame,sizeof(frame),&written)==0||written!=0u)return 1;
+    if(stnc_stnc_encode_submit_work(parent,work,miner,block,sizeof(block)-1u,UINT64_C(22),
+            frame,sizeof(frame),&written)==0||written!=0u)return 1;
+    return 0;
+}
+
 static int check_work_base(void)
 {
     uint8_t tip[32],frame[STNC_STNC_HEADER_SIZE+32u];size_t written=0u,i;
@@ -276,7 +297,7 @@ int main(void)
         return 1;
     }
 
-    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0 || check_block_evidence() != 0 || check_history_evidence() != 0 || check_suffix_evidence() != 0 || check_staged_suffix() != 0 || check_mining_context() != 0 || check_mining_template() != 0 || check_work_base() != 0) {
+    if (check_queries() != 0 || check_pending() != 0 || check_submission() != 0 || check_block_evidence() != 0 || check_history_evidence() != 0 || check_suffix_evidence() != 0 || check_staged_suffix() != 0 || check_mining_context() != 0 || check_mining_template() != 0 || check_work_base() != 0 || check_submit_work() != 0) {
         return 1;
     }
 
