@@ -41,10 +41,11 @@ cl /nologo /W4 /TC /Iincludes ^
     src\stnc_stnc.c ^
     src\stnc_stnp.c ^
     src\stnc_wallet.c ^
+    src\stnc_wallet_store.c ^
     platforms\windows\platform_windows.c ^
     src\crypto\ed25519_donna\ed25519_provider.c ^
     /Fe:build\stnc-core.exe ^
-    /link ws2_32.lib winhttp.lib bcrypt.lib
+    /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
 
 if errorlevel 1 (
     echo.
