@@ -30,6 +30,7 @@ if not exist build mkdir build
 cl /nologo /W4 /TC /Iincludes ^
     src\main.c ^
     src\stnc_command.c ^
+    src\stnc_background_mining.c ^
     src\stnc_contract_status.c ^
     src\stnc_core.c ^
     src\stnc_log.c ^
@@ -163,6 +164,19 @@ build\test-stnc-mining-service.exe
 if errorlevel 1 (
     echo.
     echo MINING SERVICE TEST FAILED
+    exit /b 1
+)
+
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_background_mining.c src\stnc_background_mining.c src\stnc_mining_service.c /Fe:build\test-stnc-background-mining.exe
+if errorlevel 1 (
+    echo.
+    echo BACKGROUND MINING TEST BUILD FAILED
+    exit /b 1
+)
+build\test-stnc-background-mining.exe
+if errorlevel 1 (
+    echo.
+    echo BACKGROUND MINING TEST FAILED
     exit /b 1
 )
 
