@@ -41,20 +41,21 @@ int stnc_wallet_build_transfer(const stnc_wallet_key *key,const char *source,con
     uint64_t units,const uint8_t nonce[STNC_WALLET_NONCE_SIZE],uint8_t transaction[STNC_WALLET_TRANSFER_SIZE])
 {
     static const uint8_t domain[40]="STN-CHAIN:TRANSFER:ENVELOPE:AUTHORIZE:1";
-    uint8_t source_id[32],destination_id[32],expected[32],statement[STNC_WALLET_TRANSFER_STATEMENT_SIZE];
+    uint8_t source_id[32],destination_id[32],identity_id[32],expected[32],statement[STNC_WALLET_TRANSFER_STATEMENT_SIZE];
     uint8_t envelope[202],signature[64];size_t i;int nonzero=0;
     if(key==NULL||source==NULL||destination==NULL||nonce==NULL||transaction==NULL||units==0 ||
        decode_wallet(source,source_id)!=0||decode_wallet(destination,destination_id)!=0||
-       memcmp(source_id,destination_id,32)==0||stnc_platform_sha256(key->public_key,32,expected)!=0||
+       memcmp(source_id,destination_id,32)==0||
+       memcpy(identity_id,key->public_key,32)==NULL||stnc_platform_sha256(identity_id,32,expected)!=0||
        memcmp(source_id,expected,32)!=0)return 1;
     for(i=0;i<32;++i)nonzero|=nonce[i];if(!nonzero)return 1;
     memset(envelope,0,sizeof(envelope));envelope[0]=1;memcpy(envelope+1,key->public_key,32);memcpy(envelope+33,nonce,32);
     envelope[65]=1;memcpy(envelope+66,source_id,32);memcpy(envelope+98,destination_id,32);put64(envelope+130,units);
-    memcpy(statement,domain,sizeof(domain));statement[40]=1;memcpy(statement+41,key->public_key,32);memcpy(statement+73,nonce,32);memcpy(statement+105,envelope+65,73);
+    memcpy(statement,domain,39u);statement[39]=0u;statement[40]=1u;memcpy(statement+41,key->public_key,32);memcpy(statement+73,nonce,32);memcpy(statement+105,envelope+65,73);
     if(stn_ed25519_sign(statement,sizeof(statement),key->public_key,key->private_key,signature)!=0)return 1;
     memcpy(envelope+138,signature,64);
     memcpy(transaction,"STNT",4);put16(transaction+4,1);put16(transaction+6,9);put32(transaction+8,202);memcpy(transaction+12,envelope,202);
     stnc_platform_secure_clear(source_id,sizeof(source_id));stnc_platform_secure_clear(destination_id,sizeof(destination_id));
-    stnc_platform_secure_clear(expected,sizeof(expected));stnc_platform_secure_clear(statement,sizeof(statement));stnc_platform_secure_clear(signature,sizeof(signature));stnc_platform_secure_clear(envelope,sizeof(envelope));
+    stnc_platform_secure_clear(identity_id,sizeof(identity_id));stnc_platform_secure_clear(expected,sizeof(expected));stnc_platform_secure_clear(statement,sizeof(statement));stnc_platform_secure_clear(signature,sizeof(signature));stnc_platform_secure_clear(envelope,sizeof(envelope));
     return 0;
 }
