@@ -51,6 +51,33 @@ static int check_type(uint16_t type, const char *prefix, size_t address_length)
     return 0;
 }
 
+static int check_queries(void)
+{
+    uint8_t frame[STNC_STNC_HEADER_SIZE + STNC_STNC_ADDRESS_TYPED_SIZE];
+    uint8_t balance[STNC_STNC_BALANCE_SIZE] = {0,0,0,0,0,0,0,42};
+    uint8_t contract[STNC_STNC_CONTRACT_STATE_SIZE] = {0,2,0,4,0,0,0,0,0,0,0,7,0,0,0,0,0,0,0,9,0,3,0,0,0,12};
+    const char wallet[] = "stnw0_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const char contract_address[] = "stnc0_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    stnc_contract_state state;
+    uint64_t units;
+    size_t written;
+    if (stnc_stnc_encode_address_query(STNC_STNC_METHOD_BALANCE,wallet,UINT64_C(8),frame,sizeof(frame),&written)!=0 ||
+        written!=sizeof(frame) || frame[9]!=STNC_STNC_METHOD_BALANCE ||
+        memcmp(frame+STNC_STNC_HEADER_SIZE,wallet,STNC_STNC_ADDRESS_TYPED_SIZE)!=0 ||
+        stnc_stnc_encode_address_query(STNC_STNC_METHOD_CONTRACT_STATE,contract_address,UINT64_C(9),frame,sizeof(frame),&written)!=0 ||
+        frame[9]!=STNC_STNC_METHOD_CONTRACT_STATE ||
+        stnc_stnc_encode_address_query(STNC_STNC_METHOD_BALANCE,contract_address,UINT64_C(1),frame,sizeof(frame),&written)==0 ||
+        stnc_stnc_encode_address_query(STNC_STNC_METHOD_CONTRACT_STATE,wallet,UINT64_C(1),frame,sizeof(frame),&written)==0) return 1;
+    if (stnc_stnc_decode_balance(balance,sizeof(balance),&units)!=0 || units!=UINT64_C(42) ||
+        stnc_stnc_decode_balance(balance,sizeof(balance)-1u,&units)==0) return 1;
+    if (stnc_stnc_decode_contract_state(contract,sizeof(contract),&state)!=0 ||
+        state.state!=2u || state.type!=4u || state.sequence!=UINT64_C(7) || state.created_at!=UINT64_C(9) ||
+        state.participant_count!=3u || state.terms_length!=12u) return 1;
+    contract[1]=10u;
+    if (stnc_stnc_decode_contract_state(contract,sizeof(contract),&state)==0) return 1;
+    return 0;
+}
+
 int main(void)
 {
     uint8_t frame[STNC_STNC_DERIVE_FRAME_MAX];
@@ -72,6 +99,10 @@ int main(void)
             &written
         ) == 0 ||
         written != 0u) {
+        return 1;
+    }
+
+    if (check_queries() != 0) {
         return 1;
     }
 
