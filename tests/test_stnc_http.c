@@ -2,6 +2,26 @@
 
 #include "stnc_http.h"
 
+int stnc_platform_https_get(
+    const char *host,
+    const char *path,
+    char *buffer,
+    size_t capacity,
+    size_t *length
+)
+{
+    (void)host;
+    (void)path;
+    (void)buffer;
+    (void)capacity;
+
+    if (length != NULL) {
+        *length = 0;
+    }
+
+    return 1;
+}
+
 int main(void)
 {
     size_t length;
