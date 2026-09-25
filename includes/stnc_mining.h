@@ -12,4 +12,7 @@ stnc_mining_result stnc_mining_search(uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE]
 stnc_mining_result stnc_mining_search_timed(uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE],
     uint64_t first_nonce,unsigned int budget_ms,uint64_t *attempts,
     uint64_t *found_nonce,uint8_t digest[32]);
+stnc_mining_result stnc_mining_search_target_timed(uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE],
+    const uint8_t target[32],uint64_t first_nonce,unsigned int budget_ms,uint64_t *attempts,
+    uint64_t *found_nonce,uint8_t digest[32]);
 #endif
