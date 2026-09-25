@@ -42,6 +42,7 @@ cl /nologo /W4 /TC /Iincludes ^
     src\stnc_stnp.c ^
     src\stnc_wallet.c ^
     src\stnc_wallet_store.c ^
+    src\stnc_wallet_status.c ^
     platforms\windows\platform_windows.c ^
     src\crypto\ed25519_donna\ed25519_provider.c ^
     /Fe:build\stnc-core.exe ^
@@ -160,6 +161,19 @@ build\test-stnc-wallet-store.exe
 if errorlevel 1 (
     echo.
     echo WALLET STORE TEST FAILED
+    exit /b 1
+)
+
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_wallet_status.c src\stnc_wallet_status.c /Fe:build\test-stnc-wallet-status.exe
+if errorlevel 1 (
+    echo.
+    echo WALLET STATUS TEST BUILD FAILED
+    exit /b 1
+)
+build\test-stnc-wallet-status.exe
+if errorlevel 1 (
+    echo.
+    echo WALLET STATUS TEST FAILED
     exit /b 1
 )
 
