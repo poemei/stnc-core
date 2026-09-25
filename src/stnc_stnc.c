@@ -95,6 +95,29 @@ int stnc_stnc_encode(
     return 0;
 }
 
+int stnc_stnc_encode_empty_request(
+    uint16_t method,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written)
+{
+    stnc_stnc_message message;
+    if(written!=NULL)*written=0;
+    if(method!=STNC_STNC_METHOD_MINING_CONTEXT&&method!=STNC_STNC_METHOD_MINING_TEMPLATE)return 1;
+    memset(&message,0,sizeof(message));message.kind=STNC_STNC_REQUEST;message.method=method;
+    message.code=STNC_STNC_OK;message.request_id=request_id;
+    return stnc_stnc_encode(&message,buffer,capacity,written);
+}
+
+int stnc_stnc_decode_mining_context(
+    const uint8_t *payload,size_t length,stnc_mining_context *context)
+{
+    stnc_mining_context decoded;
+    if(payload==NULL||context==NULL||length!=STNC_STNC_MINING_CONTEXT_SIZE)return 1;
+    memset(&decoded,0,sizeof(decoded));memcpy(decoded.tip_id,payload,32u);
+    memcpy(decoded.target,payload+32u,32u);decoded.height=stnc_read_u64(payload+64u);
+    decoded.template_available=stnc_read_u32(payload+72u);
+    if(decoded.template_available>1u)return 1;
+    *context=decoded;return 0;
+}
+
 int stnc_stnc_encode_block_height(
     uint64_t height,uint64_t request_id,uint8_t *buffer,size_t capacity,size_t *written)
 {
