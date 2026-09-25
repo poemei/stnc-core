@@ -39,7 +39,112 @@ static stnc_peer_candidates peer_candidates;
 static stnc_peer_qualified_set qualified_peers;
 static stnc_core_peer_status peer_status;
 
-static int stnc_core_probe_selected_peer_headers(const stnc_stnp_state *peer_state);
+static int stnc_core_probe_selected_peer_headers(
+    const stnc_stnp_state *peer_state
+)
+{
+    uint8_t request[STNC_STNP_HEADER_SIZE + 8u];
+    uint8_t response_header[STNC_STNP_HEADER_SIZE];
+    uint8_t response_frame[STNC_STNP_HEADERS_FRAME_MAX];
+    uint8_t block_request[STNC_STNP_HEADER_SIZE + STNC_STNP_BLOCK_INDEX_SIZE];
+    uint8_t block_header[STNC_STNP_HEADER_SIZE];
+    uint8_t *block_frame;
+    const uint8_t *block_bytes;
+    size_t written,payload_length,block_payload_length,block_length;
+    uint32_t start,count,block_index,offset;
+    uint64_t first_index,available;
+    char message[512];
+
+    if(peer_state==NULL||!chain_state.available||
+       !stnc_network_is_connected(&p2p_connection)){
+        stnc_log_error("Selected Chain P2P synchronization prerequisites are unavailable.");
+        return 1;
+    }
+
+    while((uint64_t)peer_state->block_count>(uint64_t)chain_state.block_count){
+        first_index=chain_state.block_count;
+        available=(uint64_t)peer_state->block_count-first_index;
+        count=available>STNC_STNP_HEADERS_MAX?STNC_STNP_HEADERS_MAX:(uint32_t)available;
+        if(first_index>UINT32_MAX){
+            stnc_log_error("Selected Chain P2P synchronization start exceeds STNP index range.");
+            return 1;
+        }
+        start=(uint32_t)first_index;
+
+        if(stnc_stnp_encode_get_headers(start,count,request,sizeof(request),&written)!=0||
+           written!=sizeof(request)||
+           stnc_network_send(&p2p_connection,request,written)!=0){
+            stnc_log_error("Selected Chain P2P GET_HEADERS failed.");
+            return 1;
+        }
+
+        if(stnc_network_receive(&p2p_connection,response_header,sizeof(response_header))!=0||
+           stnc_stnp_decode_headers_header(response_header,sizeof(response_header),&payload_length)!=0){
+            stnc_log_error("Selected Chain P2P HEADERS header is unavailable or invalid.");
+            return 1;
+        }
+        memcpy(response_frame,response_header,sizeof(response_header));
+        if(stnc_network_receive(&p2p_connection,response_frame+STNC_STNP_HEADER_SIZE,payload_length)!=0||
+           stnc_stnp_decode_headers(response_frame,STNC_STNP_HEADER_SIZE+payload_length,&start,&count)!=0||
+           (uint64_t)start!=first_index||count==0u||(uint64_t)count>available){
+            stnc_log_error("Selected Chain P2P HEADERS range is invalid.");
+            return 1;
+        }
+
+        for(offset=0u;offset<count;offset++){
+            uint32_t wanted=start+offset;
+            const uint8_t *advertised=response_frame+STNC_STNP_HEADER_SIZE+8u+
+                ((size_t)offset*STNC_STNP_HEADER_WIRE_SIZE);
+
+            if(stnc_stnp_encode_get_block(wanted,block_request,sizeof(block_request),&written)!=0||
+               written!=sizeof(block_request)||
+               stnc_network_send(&p2p_connection,block_request,written)!=0||
+               stnc_network_receive(&p2p_connection,block_header,sizeof(block_header))!=0||
+               stnc_stnp_decode_block_header(block_header,sizeof(block_header),&block_payload_length)!=0){
+                stnc_log_error("Selected Chain P2P GET_BLOCK/BLOCK header failed.");
+                return 1;
+            }
+
+            block_frame=(uint8_t *)malloc(STNC_STNP_HEADER_SIZE+block_payload_length);
+            if(block_frame==NULL){
+                stnc_log_error("Selected Chain P2P BLOCK buffer allocation failed.");
+                return 1;
+            }
+            memcpy(block_frame,block_header,sizeof(block_header));
+
+            if(stnc_network_receive(&p2p_connection,block_frame+STNC_STNP_HEADER_SIZE,block_payload_length)!=0||
+               stnc_stnp_decode_block(block_frame,STNC_STNP_HEADER_SIZE+block_payload_length,
+                   &block_index,&block_bytes,&block_length)!=0||
+               block_index!=wanted||
+               block_length<STNC_STNP_HEADER_WIRE_SIZE||
+               memcmp(block_bytes,advertised,STNC_STNP_HEADER_WIRE_SIZE)!=0){
+                free(block_frame);
+                stnc_log_error("Selected Chain P2P BLOCK does not match advertised header evidence.");
+                return 1;
+            }
+
+            if(stnc_core_submit_block_evidence(block_bytes,block_length)!=0){
+                free(block_frame);
+                stnc_log_error("Selected Chain P2P block evidence was rejected by Chain.");
+                return 1;
+            }
+            free(block_frame);
+
+            if(chain_state.block_count!=(uint32_t)(wanted+1u)){
+                stnc_log_error("Chain accepted-state response did not advance to the submitted block.");
+                return 1;
+            }
+
+            if(snprintf(message,sizeof(message),
+                    "Chain synchronization accepted block %" PRIu32 " of %" PRIu32 ".",
+                    wanted,peer_state->block_count-1u)<0)return 1;
+            stnc_log_info(message);
+        }
+    }
+
+    stnc_log_info("Selected Chain P2P synchronization is current.");
+    return 0;
+}
 static int stnc_core_select_peer(void);
 
 static void stnc_core_clear_chain_state(void)
