@@ -191,6 +191,10 @@ static int stnc_command_mining(int argc,char **argv)
         {uint64_t first_nonce=0u;
         size_t k;
         for(k=0u;k<STNC_STNC_MINING_NONCE_SIZE;k++)first_nonce=(first_nonce<<8)|block[STNC_STNC_MINING_NONCE_OFFSET+k];
+        if(attempts-1u>UINT64_MAX-first_nonce){
+            stnc_core_mining_template_release(payload);
+            fprintf(stderr,"Mining pass exceeds the canonical nonce range.\n");return 1;
+        }
         switch(stnc_mining_search(block,first_nonce,attempts,&nonce,digest)){
         case STNC_MINING_FOUND:
             {stnc_core_work_base_result base=stnc_core_check_work_base(work.parent_id,&checked);
