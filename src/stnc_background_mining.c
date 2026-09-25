@@ -8,16 +8,17 @@
 #include "stnc_log.h"
 #include "stnc_mining.h"
 #include "stnc_platform.h"
+#include "stnc_stratum_client.h"
 #include "stnc_wallet.h"
 #include "stnc_wallet_store.h"
 
 #define STNC_BACKGROUND_MINING_RETRY_MS 1000u
+#define STNC_BACKGROUND_MINING_BLOCK_CAPACITY (1024u*1024u+4096u)
 
 static int initialized;
 static uint64_t next_tick_ms;
-static uint8_t current_work_id[32];
-static int have_work_id;
-static uint64_t next_nonce;
+static stnc_stratum_client stratum;
+static uint8_t block[STNC_BACKGROUND_MINING_BLOCK_CAPACITY];
 
 static stnc_mining_backend configured_backend(const char *name)
 {
@@ -28,116 +29,87 @@ static stnc_mining_backend configured_backend(const char *name)
     return STNC_MINING_BACKEND_AUTOMATIC;
 }
 
-static uint64_t block_nonce(const uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE])
+static int mining_identity(char identity[STNC_STNC_ADDRESS_IDENTITY_SIZE+1u])
 {
-    size_t i;uint64_t nonce=0u;
-    for(i=0u;i<STNC_STNC_MINING_NONCE_SIZE;i++)
-        nonce=(nonce<<8)|block[STNC_STNC_MINING_NONCE_OFFSET+i];
-    return nonce;
+    stnc_wallet_key key;int rc;
+    memset(&key,0,sizeof(key));
+    rc=stnc_wallet_store_load(&key);
+    if(rc==0)rc=stnc_core_derive_address(STNC_STNC_ADDRESS_IDENTITY,key.public_key,
+        sizeof(key.public_key),identity,STNC_STNC_ADDRESS_IDENTITY_SIZE+1u);
+    stnc_wallet_clear(&key);return rc;
 }
 
 int stnc_background_mining_init(void)
 {
-    const stnc_config *config=stnc_config_get();
-    stnc_mining_service_config mining;
+    const stnc_config *config=stnc_config_get();stnc_mining_service_config mining;
     if(initialized||config==NULL)return 1;
-    stnc_mining_service_reset();
-    mining.enabled=config->mining_enabled;
-    mining.backend=configured_backend(config->mining_backend);
+    stnc_mining_service_reset();stnc_stratum_client_init(&stratum);
+    mining.enabled=config->mining_enabled;mining.backend=configured_backend(config->mining_backend);
     mining.cpu_limit_percent=config->mining_cpu_limit_percent;
     if(stnc_mining_service_configure(&mining)!=0)return 1;
-    initialized=1;next_tick_ms=0u;have_work_id=0;next_nonce=0u;
-    memset(current_work_id,0,sizeof(current_work_id));
-    return 0;
+    initialized=1;next_tick_ms=0u;return 0;
 }
 
 void stnc_background_mining_tick(void)
 {
-    stnc_mining_service_status status;stnc_wallet_key key;char identity[STNC_STNC_ADDRESS_IDENTITY_SIZE+1u];
-    uint8_t *payload=NULL,block[STNC_STNC_BLOCK_HEADER_SIZE],digest[32],accepted_id[32],accepted_work[40];
-    size_t payload_length=0u;stnc_mining_template work;stnc_mining_context checked;
-    uint64_t now,attempts=0u,found_nonce=0u,height=0u,first_nonce;
-    stnc_mining_result result;stnc_core_work_base_result base;
+    const stnc_config *config;stnc_mining_service_status status;stnc_stratum_job job;
+    stnc_stratum_result submit_result;char identity[STNC_STNC_ADDRESS_IDENTITY_SIZE+1u];
+    uint64_t now,attempts=0u,found_nonce=0u,start_ms,elapsed_ms;uint8_t digest[32];
+    stnc_mining_result result;
 
     if(!initialized)return;
     stnc_mining_service_status_read(&status);
-    if(!status.enabled){stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;}
-    if(status.configured_backend!=STNC_MINING_BACKEND_AUTOMATIC&&
-       status.configured_backend!=STNC_MINING_BACKEND_CPU){
-        stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
+    if(!status.enabled){stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;}
+    if(status.configured_backend!=STNC_MINING_BACKEND_AUTOMATIC&&status.configured_backend!=STNC_MINING_BACKEND_CPU){
+        stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
     }
 
-    now=stnc_platform_monotonic_ms();
-    if(now<next_tick_ms)return;
-    next_tick_ms=now+STNC_BACKGROUND_MINING_RETRY_MS;
-
-    memset(&key,0,sizeof(key));
-    if(stnc_wallet_store_load(&key)!=0||
-       stnc_core_derive_address(STNC_STNC_ADDRESS_IDENTITY,key.public_key,sizeof(key.public_key),
-           identity,sizeof(identity))!=0){
-        stnc_wallet_clear(&key);
-        stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
-        return;
+    now=stnc_platform_monotonic_ms();if(now<next_tick_ms)return;next_tick_ms=now+STNC_BACKGROUND_MINING_RETRY_MS;
+    config=stnc_config_get();if(config==NULL||mining_identity(identity)!=0){
+        stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
     }
-    stnc_wallet_clear(&key);
 
-    if(stnc_core_mining_template(&payload,&payload_length,&work)!=0||
-       work.block_length!=sizeof(block)){
-        stnc_core_mining_template_release(payload);
-        stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
-        return;
+    if(!stratum.connected){
+        if(stnc_stratum_client_connect(&stratum,config->stratum_host,config->stratum_port,identity)!=0){
+            stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
+        }
+        stnc_log_info("Background mining connected to STN-Stratum.");
     }
-    memcpy(block,work.block,sizeof(block));
-    if(!have_work_id||memcmp(current_work_id,work.work_id,sizeof(current_work_id))!=0){
-        memcpy(current_work_id,work.work_id,sizeof(current_work_id));
-        next_nonce=block_nonce(block);have_work_id=1;
-    }
-    first_nonce=next_nonce;
 
-    base=stnc_core_check_work_base(work.parent_id,&checked);
-    if(base!=STNC_CORE_WORK_BASE_CURRENT||!checked.template_available||
-       memcmp(checked.tip_id,work.parent_id,32u)!=0||
-       memcmp(checked.target,block+120u,32u)!=0){
-        stnc_core_mining_template_release(payload);have_work_id=0;
-        stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
-        return;
+    memset(&job,0,sizeof(job));
+    if(stnc_stratum_client_receive_job(&stratum,&job,block,sizeof(block))!=0){
+        stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
+    }
+    if(job.block_length!=STNC_STNM_BLOCK_HEADER_SIZE){
+        stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
     }
 
     if(!status.running||status.active_backend!=STNC_MINING_BACKEND_CPU)
-        stnc_log_info("Background mining active: backend=cpu cpu_limit=2%.");
+        stnc_log_info("Background mining active through STN-Stratum: backend=cpu.");
     stnc_mining_service_set_running(1,STNC_MINING_BACKEND_CPU);
-    result=stnc_mining_search_timed(block,first_nonce,stnc_mining_service_cpu_work_ms(),
+    start_ms=stnc_platform_monotonic_ms();
+    result=stnc_mining_search_timed(block,job.initial_nonce,stnc_mining_service_cpu_work_ms(),
         &attempts,&found_nonce,digest);
+    elapsed_ms=stnc_platform_monotonic_ms()-start_ms;
     stnc_mining_service_record_pass(attempts,result==STNC_MINING_FOUND);
-    if(result==STNC_MINING_FOUND)stnc_log_info("Background mining found candidate work.");
+    if(attempts>0u&&elapsed_ms>0u)(void)stnc_stratum_client_progress(&stratum,job.work_id,attempts,elapsed_ms);
 
-    if(result==STNC_MINING_EXHAUSTED){
-        if(attempts>UINT64_MAX-first_nonce)have_work_id=0;
-        else next_nonce=first_nonce+attempts;
-        stnc_core_mining_template_release(payload);return;
+    if(result==STNC_MINING_FOUND){
+        stnc_log_info("Background mining found candidate work; submitting through STN-Stratum.");
+        if(stnc_stratum_client_submit(&stratum,job.work_id,found_nonce,&submit_result)!=0){
+            stnc_stratum_client_disconnect(&stratum);
+        }
+    }else if(result!=STNC_MINING_EXHAUSTED){
+        stnc_stratum_client_disconnect(&stratum);
+        stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
     }
-    if(result!=STNC_MINING_FOUND){
-        stnc_core_mining_template_release(payload);
-        stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
-    }
-
-    base=stnc_core_check_work_base(work.parent_id,&checked);
-    if(base==STNC_CORE_WORK_BASE_CURRENT&&checked.template_available&&
-       memcmp(checked.tip_id,work.parent_id,32u)==0&&
-       memcmp(checked.target,block+120u,32u)==0){
-        (void)stnc_core_submit_work(work.parent_id,work.work_id,identity,block,sizeof(block),
-            accepted_id,&height,accepted_work);
-    }
-    have_work_id=0;
-    stnc_core_mining_template_release(payload);
 }
 
 void stnc_background_mining_shutdown(void)
 {
     if(!initialized)return;
-    stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
-    stnc_mining_service_reset();initialized=0;next_tick_ms=0u;next_nonce=0u;have_work_id=0;
-    memset(current_work_id,0,sizeof(current_work_id));
+    stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
+    stnc_mining_service_reset();initialized=0;next_tick_ms=0u;memset(block,0,sizeof(block));
 }
 
 void stnc_background_mining_status(stnc_mining_service_status *status)
