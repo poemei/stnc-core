@@ -19,6 +19,7 @@
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
 #define STNC_ROOT_PEER_RETRY_INTERVAL_MS 30000u
+#define STNC_P2P_REFRESH_INTERVAL_MS 5000u
 #define STNC_DIRECTORY_HOST "stn-chain.org"
 #define STNC_DIRECTORY_PATH "/peers?format=json"
 
@@ -29,6 +30,9 @@ static stnc_core_chain_state chain_state;
 static uint32_t root_peer_capabilities;
 static stnc_peer_candidates peer_candidates;
 static stnc_peer_qualified_set qualified_peers;
+
+static int stnc_core_probe_selected_peer_headers(const stnc_stnp_state *peer_state);
+static int stnc_core_select_peer(void);
 
 static void stnc_core_clear_chain_state(void)
 {
@@ -957,6 +961,54 @@ static int stnc_core_qualify_root_peer(void)
     return 0;
 }
 
+static int stnc_core_refresh_selected_peer(void)
+{
+    stnc_stnp_state state;
+    uint8_t request[STNC_STNP_HEADER_SIZE];
+    uint8_t response[STNC_STNP_HEADER_SIZE + STNC_STNP_STATE_SIZE];
+    size_t written;
+    char message[512];
+
+    if (!stnc_network_is_connected(&p2p_connection)) {
+        return 1;
+    }
+
+    memset(&state, 0, sizeof(state));
+
+    if (stnc_stnp_encode_state(
+            request,
+            sizeof(request),
+            &written
+        ) != 0 ||
+        written != sizeof(request) ||
+        stnc_network_send(&p2p_connection, request, written) != 0 ||
+        stnc_network_receive(&p2p_connection, response, sizeof(response)) != 0 ||
+        stnc_stnp_decode_state(response, sizeof(response), &state) != 0) {
+        stnc_log_error("Selected Chain P2P peer runtime STATE refresh failed.");
+        stnc_network_disconnect(&p2p_connection);
+        return 1;
+    }
+
+    if (snprintf(
+            message,
+            sizeof(message),
+            "Selected Chain P2P peer runtime STATE: height=%" PRIu64 " blocks=%" PRIu32,
+            state.height,
+            state.block_count
+        ) < 0) {
+        return 1;
+    }
+    stnc_log_info(message);
+
+    if (stnc_core_probe_selected_peer_headers(&state) != 0) {
+        stnc_log_error("Selected Chain P2P peer runtime evidence probe failed.");
+        stnc_network_disconnect(&p2p_connection);
+        return 1;
+    }
+
+    return 0;
+}
+
 static int stnc_core_refresh_chain_state(void)
 {
     uint64_t previous_height;
@@ -1094,6 +1146,7 @@ int stnc_core_run(void)
     unsigned int refresh_elapsed;
     unsigned int reconnect_elapsed;
     unsigned int root_peer_retry_elapsed;
+    unsigned int p2p_refresh_elapsed;
 
     if (core_state != STNC_CORE_STATE_INITIALIZED) {
         return 1;
@@ -1103,6 +1156,7 @@ int stnc_core_run(void)
     refresh_elapsed = 0;
     reconnect_elapsed = 0;
     root_peer_retry_elapsed = 0;
+    p2p_refresh_elapsed = 0;
     stnc_log_info("STNC Core running.");
 
     while (core_state == STNC_CORE_STATE_RUNNING) {
@@ -1125,6 +1179,25 @@ int stnc_core_run(void)
                 }
             } else {
                 root_peer_retry_elapsed = 0;
+            }
+
+            if (stnc_network_is_connected(&p2p_connection)) {
+                p2p_refresh_elapsed += STNC_RUNTIME_WAIT_MS;
+                if (p2p_refresh_elapsed >= STNC_P2P_REFRESH_INTERVAL_MS) {
+                    p2p_refresh_elapsed = 0;
+                    if (stnc_core_refresh_selected_peer() != 0) {
+                        stnc_log_info("Selected Chain P2P peer refresh failed; reselection scheduled.");
+                    }
+                }
+            } else {
+                p2p_refresh_elapsed += STNC_RUNTIME_WAIT_MS;
+                if (p2p_refresh_elapsed >= STNC_RECONNECT_INTERVAL_MS) {
+                    p2p_refresh_elapsed = 0;
+                    stnc_log_info("Reselecting Chain P2P peer.");
+                    if (stnc_core_select_peer() != 0) {
+                        stnc_log_error("Chain P2P peer reselection failed.");
+                    }
+                }
             }
 
             if (refresh_elapsed >= STNC_CHAIN_REFRESH_INTERVAL_MS) {
