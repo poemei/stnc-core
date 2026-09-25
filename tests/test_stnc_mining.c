@@ -22,7 +22,14 @@ int main(void)
 
     target[31]=1u;
     if(!stnc_mining_hash_meets_target(digest,target))return 1;
+    memcpy(digest,target,sizeof(digest));
+    if(!stnc_mining_hash_meets_target(digest,target))return 1;
     digest[31]=2u;if(stnc_mining_hash_meets_target(digest,target))return 1;
+    memset(digest,0,sizeof(digest));memset(target,0,sizeof(target));
+    digest[0]=1u;
+    if(stnc_mining_hash_meets_target(digest,target))return 1;
+    digest[0]=0u;target[0]=1u;
+    if(!stnc_mining_hash_meets_target(digest,target))return 1;
 
     for(i=0u;i<sizeof(block);i++)block[i]=(uint8_t)i;
     if(stnc_mining_hash(block,digest)!=0||
