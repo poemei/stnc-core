@@ -39,4 +39,12 @@ void stnc_platform_network_disconnect(
     void *handle
 );
 
+int stnc_platform_https_get(
+    const char *host,
+    const char *path,
+    char *buffer,
+    size_t capacity,
+    size_t *length
+);
+
 #endif
