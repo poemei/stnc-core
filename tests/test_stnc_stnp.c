@@ -38,6 +38,8 @@ int main(void)
     unsigned char state_frame[STNC_STNP_HEADER_SIZE + STNC_STNP_STATE_SIZE];
     unsigned char get_headers[STNC_STNP_HEADER_SIZE + 8u];
     unsigned char headers_frame[STNC_STNP_HEADER_SIZE + 8u + STNC_STNP_HEADER_WIRE_SIZE];
+    unsigned char get_block[STNC_STNP_HEADER_SIZE + STNC_STNP_BLOCK_INDEX_SIZE];
+    unsigned char block_frame[STNC_STNP_HEADER_SIZE + STNC_STNP_BLOCK_INDEX_SIZE + STNC_STNP_HEADER_WIRE_SIZE];
     unsigned char get_peers[STNC_STNP_HEADER_SIZE];
     unsigned char peers_frame[STNC_STNP_HEADER_SIZE + 14u];
     stnc_stnp_hello hello;
@@ -47,6 +49,9 @@ int main(void)
     size_t payload_length;
     uint32_t header_start;
     uint32_t header_count;
+    uint32_t block_index;
+    const uint8_t *block_bytes;
+    size_t block_length;
     size_t index;
 
     for (index = 0; index < sizeof(network_id); ++index) {
@@ -172,6 +177,49 @@ int main(void)
             &header_start,
             &header_count
         ) == 0) {
+        return 1;
+    }
+
+    if (stnc_stnp_encode_get_block(
+            252u,
+            get_block,
+            sizeof(get_block),
+            &written
+        ) != 0 ||
+        written != sizeof(get_block) ||
+        memcmp(get_block, "STNP", 4) != 0 ||
+        get_block[6] != 0u ||
+        get_block[7] != STNC_STNP_GET_BLOCK) {
+        return 1;
+    }
+
+    memset(block_frame, 0, sizeof(block_frame));
+    memcpy(block_frame, "STNP", 4);
+    write_u16(block_frame + 4, STNC_STNP_VERSION);
+    write_u16(block_frame + 6, STNC_STNP_BLOCK);
+    write_u32(block_frame + 8, STNC_STNP_BLOCK_INDEX_SIZE + STNC_STNP_HEADER_WIRE_SIZE);
+    write_u32(block_frame + 12, 252u);
+    for (index = 0; index < STNC_STNP_HEADER_WIRE_SIZE; ++index) {
+        block_frame[16u + index] = (unsigned char)(index & 0xffu);
+    }
+
+    if (stnc_stnp_decode_block_header(
+            block_frame,
+            STNC_STNP_HEADER_SIZE,
+            &payload_length
+        ) != 0 ||
+        payload_length != STNC_STNP_BLOCK_INDEX_SIZE + STNC_STNP_HEADER_WIRE_SIZE ||
+        stnc_stnp_decode_block(
+            block_frame,
+            sizeof(block_frame),
+            &block_index,
+            &block_bytes,
+            &block_length
+        ) != 0 ||
+        block_index != 252u ||
+        block_length != STNC_STNP_HEADER_WIRE_SIZE ||
+        block_bytes[0] != 0u ||
+        block_bytes[167] != 167u) {
         return 1;
     }
 
