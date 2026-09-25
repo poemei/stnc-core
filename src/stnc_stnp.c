@@ -169,6 +169,103 @@ int stnc_stnp_decode_state(
     return 0;
 }
 
+int stnc_stnp_encode_get_headers(
+    uint32_t start,
+    uint32_t count,
+    uint8_t *buffer,
+    size_t capacity,
+    size_t *written
+)
+{
+    if (written != NULL) {
+        *written = 0;
+    }
+
+    if (buffer == NULL ||
+        written == NULL ||
+        count == 0u ||
+        count > STNC_STNP_HEADERS_MAX ||
+        capacity < STNC_STNP_HEADER_SIZE + 8u) {
+        return 1;
+    }
+
+    memcpy(buffer, "STNP", 4);
+    stnc_stnp_write_u16(buffer + 4, STNC_STNP_VERSION);
+    stnc_stnp_write_u16(buffer + 6, STNC_STNP_GET_HEADERS);
+    stnc_stnp_write_u32(buffer + 8, 8u);
+    stnc_stnp_write_u32(buffer + 12, start);
+    stnc_stnp_write_u32(buffer + 16, count);
+    *written = STNC_STNP_HEADER_SIZE + 8u;
+    return 0;
+}
+
+int stnc_stnp_decode_headers_header(
+    const uint8_t *buffer,
+    size_t length,
+    size_t *payload_length
+)
+{
+    uint32_t payload;
+
+    if (payload_length != NULL) {
+        *payload_length = 0;
+    }
+
+    if (buffer == NULL ||
+        payload_length == NULL ||
+        length != STNC_STNP_HEADER_SIZE ||
+        memcmp(buffer, "STNP", 4) != 0 ||
+        stnc_stnp_read_u16(buffer + 4) != STNC_STNP_VERSION ||
+        stnc_stnp_read_u16(buffer + 6) != STNC_STNP_HEADERS) {
+        return 1;
+    }
+
+    payload = stnc_stnp_read_u32(buffer + 8);
+    if (payload < 8u ||
+        payload > STNC_STNP_HEADERS_PAYLOAD_MAX ||
+        ((payload - 8u) % STNC_STNP_HEADER_WIRE_SIZE) != 0u) {
+        return 1;
+    }
+
+    *payload_length = (size_t)payload;
+    return 0;
+}
+
+int stnc_stnp_decode_headers(
+    const uint8_t *buffer,
+    size_t length,
+    uint32_t *start,
+    uint32_t *count
+)
+{
+    size_t payload_length;
+    uint32_t decoded_count;
+
+    if (buffer == NULL ||
+        start == NULL ||
+        count == NULL ||
+        length < STNC_STNP_HEADER_SIZE ||
+        stnc_stnp_decode_headers_header(
+            buffer,
+            STNC_STNP_HEADER_SIZE,
+            &payload_length
+        ) != 0 ||
+        length != STNC_STNP_HEADER_SIZE + payload_length) {
+        return 1;
+    }
+
+    decoded_count = stnc_stnp_read_u32(buffer + 16);
+    if (decoded_count == 0u ||
+        decoded_count > STNC_STNP_HEADERS_MAX ||
+        payload_length != 8u + ((size_t)decoded_count * STNC_STNP_HEADER_WIRE_SIZE)) {
+        return 1;
+    }
+
+    *start = stnc_stnp_read_u32(buffer + 12);
+    *count = decoded_count;
+    return 0;
+}
+
 int stnc_stnp_encode_get_peers(
     uint8_t *buffer,
     size_t capacity,
