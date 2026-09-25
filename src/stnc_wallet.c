@@ -3,7 +3,6 @@
 
 #include <string.h>
 
-int stnc_ed25519_publickey(const uint8_t private_key[32],uint8_t public_key[32]);
 int stn_ed25519_sign(const uint8_t *,size_t,const uint8_t[32],const uint8_t[32],uint8_t[64]);
 
 static int nibble(unsigned char c){if(c>='0'&&c<='9')return c-'0';if(c>='a'&&c<='f')return c-'a'+10;return -1;}
