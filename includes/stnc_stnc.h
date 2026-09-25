@@ -27,6 +27,10 @@
 #define STNC_STNC_METHOD_CONTRACT_STATE 11u
 #define STNC_STNC_METHOD_PENDING 0x1004u
 #define STNC_STNC_METHOD_SUBMIT_TRANSACTION 0x1005u
+#define STNC_STNC_METHOD_SUBMIT_BLOCK_EVIDENCE 0x1006u
+#define STNC_STNC_BLOCK_HEADER_SIZE 168u
+#define STNC_STNC_BLOCK_MAX_SIZE 1070328u
+#define STNC_STNC_BLOCK_ACCEPTED_SIZE 80u
 #define STNC_STNC_PENDING_SIZE 16u
 #define STNC_STNC_SUBMISSION_RESPONSE_SIZE 36u
 #define STNC_STNC_TRANSACTION_MAX 66881u
@@ -154,6 +158,23 @@ int stnc_stnc_encode_submit_transaction(
     uint8_t *buffer,
     size_t capacity,
     size_t *written
+);
+
+int stnc_stnc_encode_submit_block_evidence(
+    const uint8_t *block,
+    size_t block_length,
+    uint64_t request_id,
+    uint8_t *buffer,
+    size_t capacity,
+    size_t *written
+);
+
+int stnc_stnc_decode_block_accepted(
+    const uint8_t *payload,
+    size_t length,
+    uint8_t tip_id[32],
+    uint64_t *height,
+    uint8_t cumulative_work[40]
 );
 
 int stnc_stnc_decode_pending(
