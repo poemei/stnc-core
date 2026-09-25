@@ -66,6 +66,7 @@ int stnc_core_derive_address(
 
 int stnc_core_balance(const char *wallet, uint64_t *units);
 int stnc_core_contract_state(const char *contract, stnc_contract_state *state);
+int stnc_core_pending(stnc_pending_state *state);
 int stnc_core_submit_transaction(const uint8_t *transaction,size_t transaction_length,stnc_submission_result *result);
 
 #endif
