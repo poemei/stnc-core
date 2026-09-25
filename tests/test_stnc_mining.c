@@ -64,10 +64,17 @@ int main(void)
     if(stnc_mining_search(block,0u,1u,&nonce,digest)!=STNC_MINING_ERROR)return 1;
     sha_fail=0;
 
-    if(stnc_mining_search(block,0u,0u,&nonce,digest)!=STNC_MINING_ERROR)return 1;
-    if(stnc_mining_search(NULL,0u,1u,&nonce,digest)!=STNC_MINING_ERROR)return 1;
-    if(stnc_mining_search(block,0u,1u,NULL,digest)!=STNC_MINING_ERROR)return 1;
-    if(stnc_mining_search(block,0u,1u,&nonce,NULL)!=STNC_MINING_ERROR)return 1;
+    sha_calls=0u;
+    if(stnc_mining_search(block,0u,0u,&nonce,digest)!=STNC_MINING_ERROR||sha_calls!=0u)return 1;
+    if(stnc_mining_search(NULL,0u,1u,&nonce,digest)!=STNC_MINING_ERROR||sha_calls!=0u)return 1;
+    if(stnc_mining_search(block,0u,1u,NULL,digest)!=STNC_MINING_ERROR||sha_calls!=0u)return 1;
+    if(stnc_mining_search(block,0u,1u,&nonce,NULL)!=STNC_MINING_ERROR||sha_calls!=0u)return 1;
+
+    sha_calls=0u;
+    if(stnc_mining_hash(NULL,digest)!=1||sha_calls!=0u)return 1;
+    if(stnc_mining_hash(block,NULL)!=1||sha_calls!=0u)return 1;
+    if(stnc_mining_hash_meets_target(NULL,target)!=0||
+       stnc_mining_hash_meets_target(digest,NULL)!=0)return 1;
 
     puts("STNC mining tests passed.");return 0;
 }
