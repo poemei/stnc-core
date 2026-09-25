@@ -1746,6 +1746,10 @@ int stnc_core_run(void)
         }
     }
 
+    if(core_state==STNC_CORE_STATE_STOPPING)
+        stnc_log_info("STNC Core runtime loop stopped by console stop request.");
+    else
+        stnc_log_error("STNC Core runtime loop exited unexpectedly.");
     return 0;
 }
 
