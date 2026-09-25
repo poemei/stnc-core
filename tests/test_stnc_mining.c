@@ -55,6 +55,11 @@ int main(void)
     memset(block+120u,0u,32u);sha_calls=0u;
     if(stnc_mining_search(block,UINT64_MAX,2u,&nonce,digest)!=STNC_MINING_EXHAUSTED||sha_calls!=1u)return 1;
 
+    memset(block,0,sizeof(block));memset(block+120u,0u,32u);sha_calls=0u;
+    if(stnc_mining_search(block,UINT64_C(9),3u,&nonce,digest)!=STNC_MINING_EXHAUSTED||
+       sha_calls!=3u||block[152]!=0u||block[153]!=0u||block[154]!=0u||block[155]!=0u||
+       block[156]!=0u||block[157]!=0u||block[158]!=0u||block[159]!=11u)return 1;
+
     memset(block+120u,0xff,32u);sha_fail=1;
     if(stnc_mining_search(block,0u,1u,&nonce,digest)!=STNC_MINING_ERROR)return 1;
     sha_fail=0;
