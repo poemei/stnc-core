@@ -79,7 +79,6 @@ if errorlevel 1 (
     echo TEST BUILD FAILED
     exit /b 1
 )
-
 build\test-stnc-stnp.exe
 if errorlevel 1 (
     echo.
@@ -93,7 +92,6 @@ if errorlevel 1 (
     echo PEER TEST BUILD FAILED
     exit /b 1
 )
-
 build\test-stnc-peers.exe
 if errorlevel 1 (
     echo.
@@ -107,7 +105,6 @@ if errorlevel 1 (
     echo DIRECTORY TEST BUILD FAILED
     exit /b 1
 )
-
 build\test-stnc-directory.exe
 if errorlevel 1 (
     echo.
@@ -121,7 +118,6 @@ if errorlevel 1 (
     echo HTTP TEST BUILD FAILED
     exit /b 1
 )
-
 build\test-stnc-http.exe
 if errorlevel 1 (
     echo.
@@ -135,7 +131,6 @@ if errorlevel 1 (
     echo PEER SELECT TEST BUILD FAILED
     exit /b 1
 )
-
 build\test-stnc-peer-select.exe
 if errorlevel 1 (
     echo.
@@ -208,7 +203,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-cl /nologo /W4 /TC /Iincludes tests\test_stnc_background_mining.c src\stnc_background_mining.c src\stnc_mining_service.c src\stnc_log.c platforms\windows\platform_windows.c src\stnc_core.c src\stnc_stratum_client.c src\stnc_stratum.c src\stnc_mining.c src\stnc_wallet_store.c src\stnc_wallet.c src\stnc_config.c src\stnc_directory.c src\stnc_http.c src\stnc_network.c src\stnc_peers.c src\stnc_peer_select.c src\stnc_stnc.c src\stnc_stnp.c src\crypto\ed25519_donna\ed25519_provider.c /Fe:build\test-stnc-background-mining.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
+cl /nologo /W4 /TC /D_CRT_SECURE_NO_WARNINGS /Iincludes tests\test_stnc_background_mining.c src\stnc_background_mining.c src\stnc_mining_service.c src\stnc_log.c /Fe:build\test-stnc-background-mining.exe
 if errorlevel 1 (
     echo.
     echo BACKGROUND MINING TEST BUILD FAILED
@@ -233,7 +228,6 @@ if errorlevel 1 (
     echo WALLET TEST FAILED
     exit /b 1
 )
-
 
 cl /nologo /W4 /TC /D_CRT_SECURE_NO_WARNINGS /Iincludes tests\test_stnc_wallet_store.c src\stnc_wallet_store.c src\stnc_wallet.c platforms\windows\platform_windows.c src\crypto\ed25519_donna\ed25519_provider.c src\stnc_core.c src\stnc_background_mining.c src\stnc_stratum_client.c src\stnc_stratum.c src\stnc_mining_service.c src\stnc_mining.c src\stnc_log.c src\stnc_config.c src\stnc_directory.c src\stnc_http.c src\stnc_network.c src\stnc_peers.c src\stnc_peer_select.c src\stnc_stnc.c src\stnc_stnp.c /Fe:build\test-stnc-wallet-store.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
 if errorlevel 1 (
