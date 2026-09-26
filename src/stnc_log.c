@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include <share.h>
+#include <sys/stat.h>
 #endif
 
 #include "stnc_log.h"
