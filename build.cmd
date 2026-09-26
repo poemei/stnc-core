@@ -60,7 +60,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-cl /nologo /W4 /TC /Iincludes tests\test_stnc_log.c src\stnc_log.c platforms\windows\platform_windows.c src\stnc_core.c src\stnc_background_mining.c src\stnc_stratum_client.c src\stnc_stratum.c src\stnc_mining_service.c src\stnc_mining.c src\stnc_wallet_store.c src\stnc_wallet.c src\stnc_config.c src\stnc_directory.c src\stnc_http.c src\stnc_network.c src\stnc_peers.c src\stnc_peer_select.c src\stnc_stnc.c src\stnc_stnp.c src\crypto\ed25519_donna\ed25519_provider.c /Fe:build\test-stnc-log.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
+cl /nologo /W4 /TC /D_CRT_SECURE_NO_WARNINGS /Iincludes tests\test_stnc_log.c src\stnc_log.c /Fe:build\test-stnc-log.exe
 if errorlevel 1 (
     echo.
     echo LOG TEST BUILD FAILED
