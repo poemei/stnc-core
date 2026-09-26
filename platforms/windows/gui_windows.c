@@ -1,11 +1,20 @@
 /* Windows STNC Core frontend.
  *
- * gui_btc.c owns the frontend. This wrapper provides one Win32 visibility
- * policy for page controls so periodic Core refreshes cannot paint over or
- * incorrectly hide interactive controls.
+ * gui_btc.c owns the frontend. This wrapper provides the Win32 sibling
+ * clipping and visibility policy required by the periodically refreshed page
+ * text surface. Interactive controls must remain visible and usable while the
+ * Core snapshot is repainted.
  */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+
+/* gui_btc.c creates the page text surface as SS_LEFT. Without
+ * WS_CLIPSIBLINGS that STATIC control can repaint across sibling buttons,
+ * edits and combo boxes every time SetWindowText() refreshes it. The controls
+ * still exist, which is why they briefly appear and then seem to disappear.
+ */
+#undef SS_LEFT
+#define SS_LEFT (0x00000000L | WS_CLIPSIBLINGS)
 
 static BOOL stnc_gui_show_window(HWND h,int command);
 #define ShowWindow stnc_gui_show_window
@@ -21,7 +30,7 @@ static BOOL stnc_gui_show_window(HWND h,int command)
     id=GetDlgCtrlID(h);
 
     /* Creation is based on a usable canonical object, not merely the
-     * existence of a key file. A stale/invalid key must not remove recovery.
+     * existence of a stale or invalid key file.
      */
     if(id==CREATE_WALLET&&ui.page==P_WALLET_ADDRESS&&!ui.snap.wallet.key_valid)
         command=SW_SHOW;
@@ -30,9 +39,7 @@ static BOOL stnc_gui_show_window(HWND h,int command)
 
     result=ShowWindow(h,command);
 
-    /* Page controls always sit above the page text surface. SetWindowText on
-     * the status surface occurs every second and must never obscure controls.
-     */
+    /* Keep visible page controls above the shared page text surface. */
     if(command!=SW_HIDE&&command!=SW_MINIMIZE)
         SetWindowPos(h,HWND_TOP,0,0,0,0,
             SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_SHOWWINDOW);
