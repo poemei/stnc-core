@@ -6,6 +6,7 @@
 #include "stnc_config.h"
 #include "stnc_background_mining.h"
 #include "stnc_contract_status.h"
+#include "stnc_contract_list.h"
 #include "stnc_contract_draft.h"
 #include "stnc_contract_create.h"
 #include "stnc_log.h"
@@ -19,6 +20,8 @@ typedef struct stnc_client_snapshot {
     stnc_mining_service_status mining;
     stnc_config config;
     int stratum_connected;
+    int contracts_available;
+    stnc_contract_list contracts;
     size_t activity_count;
     char activity[5][STNC_LOG_ENTRY_MAX];
 } stnc_client_snapshot;
