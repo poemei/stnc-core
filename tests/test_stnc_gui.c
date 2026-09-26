@@ -44,14 +44,14 @@ int main(void)
     for(i=0;i<200&&!app;++i){EnumWindows(find_window,0);Sleep(50);}CHECK(app!=NULL);CHECK(wait_enabled(101)==0);
     CHECK(IsWindowEnabled(GetDlgItem(app,102)));CHECK(!IsWindowEnabled(GetDlgItem(app,104)));
     CHECK(!IsWindowEnabled(GetDlgItem(app,107)));CHECK(IsWindowEnabled(GetDlgItem(app,103)));
-    page(7);click(103);CHECK(wait_enabled(101)==0);CHECK(!IsWindowEnabled(GetDlgItem(app,103)));
+    page(2);click(103);CHECK(wait_enabled(101)==0);CHECK(!IsWindowEnabled(GetDlgItem(app,103)));
     page(1);click(102);CHECK(wait_enabled(101)==0);CHECK(!IsWindowEnabled(GetDlgItem(app,102)));
     CHECK(IsWindowEnabled(GetDlgItem(app,104))&&IsWindowEnabled(GetDlgItem(app,107)));
-    page(4);click(107);CHECK(wait_enabled(101)==0);CHECK(GetExitCodeProcess(process.hProcess,&exit_code)&&exit_code==STILL_ACTIVE);
+    page(8);click(107);CHECK(wait_enabled(101)==0);CHECK(GetExitCodeProcess(process.hProcess,&exit_code)&&exit_code==STILL_ACTIVE);
     click(108);CHECK(wait_enabled(101)==0);CHECK(GetExitCodeProcess(process.hProcess,&exit_code)&&exit_code==STILL_ACTIVE);
-    for(i=0;i<8;++i){page((int)i);CHECK(IsWindow(app));}
+    for(i=0;i<9;++i){page((int)i);CHECK(IsWindow(app));}
     page(0);CHECK(capture("build\\gui-overview.bmp")==0);
-    page(3);CHECK(capture("build\\gui-contracts.bmp")==0);
+    page(6);CHECK(capture("build\\gui-contracts.bmp")==0);
     /* Full log must be concurrently readable. */
     snprintf(path,sizeof(path),"%s\\stnc-core.log",directory);file=fopen(path,"rb");CHECK(file!=NULL);fclose(file);
 cleanup:
