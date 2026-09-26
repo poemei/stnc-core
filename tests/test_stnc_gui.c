@@ -7,6 +7,7 @@ static DWORD child_pid;static HWND app;
 static BOOL CALLBACK find_window(HWND w,LPARAM x){DWORD pid=0;char name[64];(void)x;GetWindowThreadProcessId(w,&pid);GetClassNameA(w,name,sizeof(name));if(pid==child_pid&&strcmp(name,"STNCCoreWindow")==0)app=w;return TRUE;}
 static int wait_control(int id,int enabled){ULONGLONG until=GetTickCount64()+45000;while(GetTickCount64()<until){HWND h=GetDlgItem(app,id);if(h&&IsWindowEnabled(h)==enabled)return 0;Sleep(50);}return 1;}
 static int wait_visible(int id){ULONGLONG until=GetTickCount64()+45000;while(GetTickCount64()<until){HWND h=GetDlgItem(app,id);if(h&&IsWindowVisible(h))return 0;Sleep(50);}return 1;}
+static int wait_hidden(int id){ULONGLONG until=GetTickCount64()+45000;while(GetTickCount64()<until){HWND h=GetDlgItem(app,id);if(h&&!IsWindowVisible(h))return 0;Sleep(50);}return 1;}
 static int stays_visible(int id,DWORD ms){ULONGLONG until=GetTickCount64()+ms;while(GetTickCount64()<until){HWND h=GetDlgItem(app,id);if(!h||!IsWindowVisible(h))return 1;Sleep(50);}return 0;}
 static void click(int id){SendMessage(app,WM_COMMAND,MAKEWPARAM(id,BN_CLICKED),(LPARAM)GetDlgItem(app,id));}
 static void menu_command(int id){SendMessage(app,WM_COMMAND,MAKEWPARAM(id,0),0);}
@@ -18,9 +19,12 @@ int main(void){char temp[MAX_PATH],dir[MAX_PATH]={0},path[MAX_PATH],exe[MAX_PATH
  /* Enum starts at M_EXIT=2000: Address=2001, Identity=2002, New Contract=2003, Send=2004, Receive=2005, Contracts=2006, Activity=2007, Mining=2008. */
  menu_command(2001);CHECK(wait_visible(102)==0);CHECK(stays_visible(102,2500)==0);
  menu_command(2002);CHECK(wait_visible(103)==0);CHECK(stays_visible(103,2500)==0);
- menu_command(2008);CHECK(wait_visible(107)==0);CHECK(wait_visible(108)==0);CHECK(stays_visible(107,2500)==0);CHECK(stays_visible(108,2500)==0);
+ menu_command(2008);CHECK(wait_visible(107)==0);CHECK(wait_visible(108)==0);CHECK(wait_control(107,FALSE)==0);CHECK(stays_visible(107,2500)==0);CHECK(stays_visible(108,2500)==0);
  menu_command(2003);CHECK(wait_visible(113)==0);CHECK(wait_visible(114)==0);CHECK(wait_visible(112)==0);CHECK(stays_visible(113,2500)==0);CHECK(stays_visible(114,2500)==0);CHECK(stays_visible(112,2500)==0);
  menu_command(2006);CHECK(wait_visible(118)==0);CHECK(wait_visible(119)==0);CHECK(wait_visible(120)==0);CHECK(stays_visible(118,2500)==0);CHECK(stays_visible(119,2500)==0);CHECK(stays_visible(120,2500)==0);
- CHECK(wait_control(107,FALSE)==0);menu_command(2001);click(102);menu_command(2002);click(103);CHECK(wait_control(107,TRUE)==0);menu_command(2008);click(107);CHECK(wait_control(107,FALSE)==0);CHECK(wait_control(108,TRUE)==0);click(108);CHECK(wait_control(107,TRUE)==0);CHECK(wait_control(108,FALSE)==0);
- menu_command(2003);CHECK(wait_visible(112)==0);snprintf(path,sizeof(path),"%s\\wallet.key",dir);CHECK(GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES);snprintf(path,sizeof(path),"%s\\identity.key",dir);CHECK(GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES);CHECK(GetExitCodeProcess(pi.hProcess,&code)&&code==STILL_ACTIVE);
+ /* Create persistent wallet first and wait for the create control to disappear before issuing the identity request. */
+ menu_command(2001);click(102);CHECK(wait_hidden(102)==0);snprintf(path,sizeof(path),"%s\\wallet.key",dir);CHECK(GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES);
+ menu_command(2002);click(103);CHECK(wait_hidden(103)==0);snprintf(path,sizeof(path),"%s\\identity.key",dir);CHECK(GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES);
+ menu_command(2008);CHECK(wait_visible(107)==0);CHECK(wait_control(107,TRUE)==0);click(107);CHECK(wait_control(107,FALSE)==0);CHECK(wait_control(108,TRUE)==0);click(108);CHECK(wait_control(107,TRUE)==0);CHECK(wait_control(108,FALSE)==0);
+ menu_command(2003);CHECK(wait_visible(112)==0);CHECK(GetExitCodeProcess(pi.hProcess,&code)&&code==STILL_ACTIVE);
 cleanup:if(started){PostMessage(app,WM_CLOSE,0,0);if(WaitForSingleObject(pi.hProcess,45000)!=WAIT_OBJECT_0){TerminateProcess(pi.hProcess,1);failed=1;}CloseHandle(pi.hThread);CloseHandle(pi.hProcess);}if(dir[0]){for(i=0;i<sizeof(files)/sizeof(files[0]);++i){snprintf(path,sizeof(path),"%s\\%s",dir,files[i]);DeleteFileA(path);}RemoveDirectoryA(dir);}if(!failed)puts("STNC native GUI smoke tests passed.");return failed;}
