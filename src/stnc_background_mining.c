@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "stnc_compensation.h"
 #include "stnc_config.h"
 #include "stnc_core.h"
 #include "stnc_identity.h"
@@ -27,6 +28,7 @@ static uint8_t block[STNC_BACKGROUND_MINING_BLOCK_CAPACITY];
 static stnc_stratum_job active_job;
 static int have_job;
 static uint64_t next_nonce;
+static int compensation_ready;
 
 static void clear_active_work(void)
 {
@@ -71,7 +73,8 @@ int stnc_background_mining_init(void)
     applied_enabled=mining.enabled;applied_backend=mining.backend;applied_cpu_limit=mining.cpu_limit_percent;
     memcpy(applied_stratum_host,config->stratum_host,sizeof(applied_stratum_host));
     applied_stratum_host[sizeof(applied_stratum_host)-1u]='\0';applied_stratum_port=config->stratum_port;
-    initialized=1;next_work_ms=0u;have_job=0;next_nonce=0u;memset(&active_job,0,sizeof(active_job));return 0;
+    initialized=1;next_work_ms=0u;have_job=0;next_nonce=0u;compensation_ready=0;
+    memset(&active_job,0,sizeof(active_job));return 0;
 }
 
 static int apply_runtime_config(const stnc_config *config)
@@ -114,6 +117,15 @@ void stnc_background_mining_tick(void)
     now=stnc_platform_monotonic_ms();
     if(config==NULL||mining_identity(identity)!=0){
         clear_stratum_work();return;
+    }
+
+    if(!compensation_ready){
+        if(stnc_compensation_ensure()!=0){
+            stnc_log_error("Mining compensation destination is unavailable; background mining will not start.");
+            clear_stratum_work();return;
+        }
+        compensation_ready=1;
+        stnc_log_info("Mining compensation destination submitted to Chain.");
     }
 
     if(!stratum.connected){
@@ -181,7 +193,7 @@ void stnc_background_mining_shutdown(void)
 {
     if(!initialized)return;
     clear_stratum_work();
-    stnc_mining_service_reset();initialized=0;next_work_ms=0u;have_job=0;next_nonce=0u;
+    stnc_mining_service_reset();initialized=0;next_work_ms=0u;have_job=0;next_nonce=0u;compensation_ready=0;
     applied_enabled=0;applied_backend=STNC_MINING_BACKEND_AUTOMATIC;applied_cpu_limit=0u;
     memset(applied_stratum_host,0,sizeof(applied_stratum_host));applied_stratum_port=0u;
     memset(&active_job,0,sizeof(active_job));memset(block,0,sizeof(block));
