@@ -129,7 +129,7 @@ void stnc_background_mining_tick(void)
         stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
     }
     if(poll_result==0){
-        active_job=job;next_nonce=job.initial_nonce;have_job=1;
+        active_job=job;next_nonce=job.initial_nonce;have_job=1;next_work_ms=now;
     }
     if(!have_job)return;
     if(now<next_work_ms)return;
