@@ -33,6 +33,7 @@ static void clear_stratum_work(void)
 {
     stnc_stratum_client_disconnect(&stratum);have_job=0;next_nonce=0u;next_work_ms=0u;
     memset(&active_job,0,sizeof(active_job));memset(block,0,sizeof(block));
+    stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
 }
 
 static stnc_mining_backend configured_backend(const char *name)
