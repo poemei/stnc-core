@@ -87,7 +87,9 @@ int main(void)
     config.mining_enabled=0;clock_ms=1500u;stnc_background_mining_tick();stnc_background_mining_status(&status);
     if(status.enabled||status.running)return TEST_FAIL();
     config.mining_enabled=1;clock_ms=1600u;stnc_background_mining_tick();stnc_background_mining_status(&status);
-    if(!status.enabled||!status.running||connect_calls!=2u)return TEST_FAIL();
+    if(!status.enabled||status.running||connect_calls!=2u)return TEST_FAIL();
+    job_ready=1;clock_ms=1700u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(!status.running||search_calls!=3u)return TEST_FAIL();
     wallet_ok=0;clock_ms=2000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
     if(status.running)return TEST_FAIL();
     stnc_background_mining_shutdown();
