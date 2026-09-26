@@ -35,6 +35,9 @@ int stnc_mining_service_configure(const stnc_mining_service_config *config);
 void stnc_mining_service_reset(void);
 void stnc_mining_service_set_running(int running, stnc_mining_backend backend);
 void stnc_mining_service_record_pass(uint64_t attempts, int solution);
+/* Record one active mining pass. For CPU mining, hashrate_hps is the
+ * effective contribution over the configured 1000 ms duty window rather
+ * than the short burst rate. Other backends retain active-pass rate. */
 void stnc_mining_service_record_rate(uint64_t attempts, uint64_t elapsed_ms);
 void stnc_mining_service_status_read(stnc_mining_service_status *status);
 unsigned int stnc_mining_service_cpu_work_ms(void);
