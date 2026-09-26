@@ -3,6 +3,8 @@
 #include <time.h>
 
 #if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #include <fcntl.h>
 #include <io.h>
 #include <share.h>
@@ -55,17 +57,38 @@ void stnc_log_console_refresh(void)
     char entry[STNC_LOG_ENTRY_MAX];
     if(!console_enabled)return;
 #if defined(_WIN32)
-    if(console_drawn){
-        printf("\033[6A");
+    {
+        HANDLE output;
+        CONSOLE_SCREEN_BUFFER_INFO info;
+        COORD start;
+        DWORD cells,written;
+        SHORT width;
+
+        output=GetStdHandle(STD_OUTPUT_HANDLE);
+        if(output==NULL||output==INVALID_HANDLE_VALUE||!GetConsoleScreenBufferInfo(output,&info))return;
+        width=info.dwSize.X;
+        if(width<=0)return;
+
+        if(console_drawn){
+            start=info.dwCursorPosition;
+            if(start.Y>=6)start.Y=(SHORT)(start.Y-6);else start.Y=0;
+        }else{
+            start=info.dwCursorPosition;
+        }
+        start.X=0;
+        cells=(DWORD)width*6u;
+        FillConsoleOutputCharacterA(output,' ',cells,start,&written);
+        FillConsoleOutputAttribute(output,info.wAttributes,cells,start,&written);
+        SetConsoleCursorPosition(output,start);
+
+        printf("Recent activity\n");
+        for(index=0u;index<STNC_LOG_RECENT_CAPACITY;index++){
+            if(index<recent_count&&stnc_log_recent_get(index,entry,sizeof(entry))==0)printf("%s",entry);
+            printf("\n");
+        }
+        fflush(stdout);
+        console_drawn=1;
     }
-    printf("\r\033[2KRecent activity\n");
-    for(index=0u;index<STNC_LOG_RECENT_CAPACITY;index++){
-        printf("\r\033[2K");
-        if(index<recent_count&&stnc_log_recent_get(index,entry,sizeof(entry))==0)printf("%s",entry);
-        printf("\n");
-    }
-    fflush(stdout);
-    console_drawn=1;
 #else
     printf("\nRecent activity\n");
     for(index=0u;index<recent_count;index++){
