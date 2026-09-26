@@ -50,16 +50,17 @@ static stnc_mining_backend configured_backend(const char *name)
     return STNC_MINING_BACKEND_AUTOMATIC;
 }
 
-static int mining_identity(char identity[STNC_STNC_ADDRESS_IDENTITY_SIZE+1u])
+static int mining_wallet(char address[STNC_WALLET_ADDRESS_SIZE+1u])
 {
-    stnc_wallet_key key;char wallet_address[STNC_WALLET_ADDRESS_SIZE+1u];int rc;
-    memset(&key,0,sizeof(key));memset(wallet_address,0,sizeof(wallet_address));
+    stnc_wallet_key key;int rc;
+    if(address==NULL)return 1;
+    memset(&key,0,sizeof(key));memset(address,0,STNC_WALLET_ADDRESS_SIZE+1u);
     if(!stnc_wallet_store_exists())return 1;
     rc=stnc_wallet_store_load(&key);
-    if(rc==0)rc=stnc_wallet_address(&key,wallet_address);
-    if(rc==0)rc=stnc_core_derive_address(STNC_STNC_ADDRESS_IDENTITY,key.public_key,
-        sizeof(key.public_key),identity,STNC_STNC_ADDRESS_IDENTITY_SIZE+1u);
-    stnc_wallet_clear(&key);memset(wallet_address,0,sizeof(wallet_address));return rc;
+    if(rc==0)rc=stnc_wallet_address(&key,address);
+    stnc_wallet_clear(&key);
+    if(rc!=0)memset(address,0,STNC_WALLET_ADDRESS_SIZE+1u);
+    return rc;
 }
 
 int stnc_background_mining_init(void)
@@ -100,7 +101,7 @@ static int apply_runtime_config(const stnc_config *config)
 void stnc_background_mining_tick(void)
 {
     const stnc_config *config;stnc_mining_service_status status;stnc_stratum_job job;
-    stnc_stratum_result submit_result;char identity[STNC_STNC_ADDRESS_IDENTITY_SIZE+1u];
+    stnc_stratum_result submit_result;char wallet[STNC_WALLET_ADDRESS_SIZE+1u];
     uint64_t now,attempts=0u,found_nonce=0u,start_ms,elapsed_ms;uint8_t digest[32];
     stnc_mining_result result;int poll_result;
 
@@ -114,17 +115,17 @@ void stnc_background_mining_tick(void)
     }
 
     now=stnc_platform_monotonic_ms();
-    if(config==NULL||mining_identity(identity)!=0){
+    if(config==NULL||mining_wallet(wallet)!=0){
         clear_stratum_work();return;
     }
 
     if(!stratum.connected){
         char message[512];
-        if(stnc_stratum_client_connect(&stratum,config->stratum_host,config->stratum_port,identity)!=0){
+        if(stnc_stratum_client_connect(&stratum,config->stratum_host,config->stratum_port,wallet)!=0){
             stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
         }
-        if(snprintf(message,sizeof(message),"Background mining connected to STN-Stratum: %s:%u identity=%s",
-                config->stratum_host,(unsigned int)config->stratum_port,identity)>=0)stnc_log_info(message);
+        if(snprintf(message,sizeof(message),"Background mining connected to STN-Stratum: %s:%u wallet=%s",
+                config->stratum_host,(unsigned int)config->stratum_port,wallet)>=0)stnc_log_info(message);
     }
 
     memset(&job,0,sizeof(job));
