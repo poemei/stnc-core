@@ -54,8 +54,12 @@ int stnc_log_init(void)
     if(stnc_platform_get_app_directory(directory,sizeof(directory))!=0)return 1;
     written=snprintf(path,sizeof(path),"%s%c%s",directory,stnc_platform_path_separator(),STNC_LOG_FILENAME);
     if(written<0||(size_t)written>=sizeof(path))return 1;
+#if defined(_WIN32)
+    if(fopen_s(&log_file,path,"a")!=0||log_file==NULL)return 1;
+#else
     log_file=fopen(path,"a");
     if(log_file==NULL)return 1;
+#endif
     memset(recent_entries,0,sizeof(recent_entries));recent_count=0u;recent_next=0u;
     log_initialized=1;
     return 0;
