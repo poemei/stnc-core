@@ -62,37 +62,40 @@ stnc_mining_result stnc_mining_search_target_timed(uint8_t block[STNC_STNC_BLOCK
     clock_ms+=20u;return STNC_MINING_EXHAUSTED;
 }
 
+static int fail_at(int line){fprintf(stderr,"Background mining test failed at line %d.\n",line);return 1;}
+#define TEST_FAIL() fail_at(__LINE__)
+
 int main(void)
 {
     stnc_mining_service_status status;
     memset(&config,0,sizeof(config));memcpy(config.mining_backend,"automatic",sizeof("automatic"));
     memcpy(config.stratum_host,"stratum.stn-chain.org",sizeof("stratum.stn-chain.org"));
     config.stratum_port=18475u;config.mining_cpu_limit_percent=2u;
-    if(stnc_background_mining_init()!=0)return 1;
+    if(stnc_background_mining_init()!=0)return TEST_FAIL();
     stnc_background_mining_tick();stnc_background_mining_status(&status);
-    if(status.enabled||status.running||search_calls!=0u)return 1;
+    if(status.enabled||status.running||search_calls!=0u)return TEST_FAIL();
     stnc_background_mining_shutdown();
 
     config.mining_enabled=1;clock_ms=0u;job_ready=1;
-    if(stnc_background_mining_init()!=0)return 1;
+    if(stnc_background_mining_init()!=0)return TEST_FAIL();
     stnc_background_mining_tick();stnc_background_mining_status(&status);
     if(!status.enabled||!status.running||status.active_backend!=STNC_MINING_BACKEND_CPU||
        status.passes!=1u||status.attempts!=25u||search_calls!=1u||connect_calls!=1u||progress_calls!=1u||
-       observed_target[0]!=0xabu||observed_target[31]!=0xabu)return 1;
-    clock_ms=500u;stnc_background_mining_tick();if(search_calls!=1u||poll_calls!=2u)return 1;
-    clock_ms=1000u;stnc_background_mining_tick();if(search_calls!=2u||poll_calls!=3u)return 1;
+       observed_target[0]!=0xabu||observed_target[31]!=0xabu)return TEST_FAIL();
+    clock_ms=500u;stnc_background_mining_tick();if(search_calls!=1u||poll_calls!=2u)return TEST_FAIL();
+    clock_ms=1000u;stnc_background_mining_tick();if(search_calls!=2u||poll_calls!=3u)return TEST_FAIL();
     config.mining_enabled=0;clock_ms=1500u;stnc_background_mining_tick();stnc_background_mining_status(&status);
-    if(status.enabled||status.running)return 1;
+    if(status.enabled||status.running)return TEST_FAIL();
     config.mining_enabled=1;clock_ms=1600u;stnc_background_mining_tick();stnc_background_mining_status(&status);
-    if(!status.enabled||!status.running||connect_calls!=2u)return 1;
+    if(!status.enabled||!status.running||connect_calls!=2u)return TEST_FAIL();
     wallet_ok=0;clock_ms=2000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
-    if(status.running)return 1;
+    if(status.running)return TEST_FAIL();
     stnc_background_mining_shutdown();
 
     wallet_ok=1;memcpy(config.mining_backend,"gpu",sizeof("gpu"));
-    if(stnc_background_mining_init()!=0)return 1;
+    if(stnc_background_mining_init()!=0)return TEST_FAIL();
     clock_ms=3000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
-    if(status.running||search_calls!=2u)return 1;
+    if(status.running||search_calls!=2u)return TEST_FAIL();
     stnc_background_mining_shutdown();
 
     puts("Background mining tests passed.");
