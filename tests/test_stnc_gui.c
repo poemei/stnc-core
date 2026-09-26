@@ -8,7 +8,9 @@ static HWND app;
 static BOOL CALLBACK find_window(HWND window,LPARAM unused)
 {DWORD pid=0;char name[64];(void)unused;GetWindowThreadProcessId(window,&pid);GetClassNameA(window,name,sizeof(name));if(pid==child_pid&&strcmp(name,"STNCCoreWindow")==0)app=window;return TRUE;}
 static int wait_enabled(int id)
-{ULONGLONG until=GetTickCount64()+45000;while(GetTickCount64()<until){if(app&&IsWindowVisible(app)&&IsWindowEnabled(GetDlgItem(app,id)))return 0;Sleep(50);}return 1;}
+{ULONGLONG until=GetTickCount64()+45000;while(GetTickCount64()<until){HWND control=GetDlgItem(app,id);if(app&&IsWindowVisible(app)&&control&&IsWindowEnabled(control))return 0;Sleep(50);}return 1;}
+static int wait_hidden(int id)
+{ULONGLONG until=GetTickCount64()+45000;while(GetTickCount64()<until){HWND control=GetDlgItem(app,id);if(control&&!IsWindowVisible(control))return 0;Sleep(50);}return 1;}
 static void click(int id){SendMessage(app,WM_COMMAND,MAKEWPARAM(id,BN_CLICKED),(LPARAM)GetDlgItem(app,id));}
 static void page(int index)
 {SendMessage(GetDlgItem(app,100),LB_SETCURSEL,index,0);SendMessage(app,WM_COMMAND,MAKEWPARAM(100,LBN_SELCHANGE),(LPARAM)GetDlgItem(app,100));}
@@ -43,20 +45,18 @@ int main(void)
     CHECK(CreateProcessA(exe,command,NULL,NULL,FALSE,CREATE_NO_WINDOW,NULL,directory,&start,&process));started=1;child_pid=process.dwProcessId;
     for(i=0;i<200&&!app;++i){EnumWindows(find_window,0);Sleep(50);}CHECK(app!=NULL);CHECK(wait_enabled(101)==0);
     CHECK(IsWindowEnabled(GetDlgItem(app,102)));CHECK(!IsWindowEnabled(GetDlgItem(app,104)));
-    CHECK(!IsWindowEnabled(GetDlgItem(app,107)));CHECK(IsWindowEnabled(GetDlgItem(app,103)));
-    page(2);click(103);CHECK(wait_enabled(101)==0);CHECK(!IsWindowEnabled(GetDlgItem(app,103)));
-    page(1);click(102);CHECK(wait_enabled(101)==0);CHECK(!IsWindowEnabled(GetDlgItem(app,102)));
+    CHECK(!IsWindowEnabled(GetDlgItem(app,107)));
+    page(2);CHECK(IsWindowVisible(GetDlgItem(app,103)));click(103);CHECK(wait_enabled(101)==0);CHECK(wait_hidden(103)==0);
+    page(1);CHECK(IsWindowVisible(GetDlgItem(app,102)));click(102);CHECK(wait_enabled(101)==0);CHECK(wait_hidden(102)==0);
     CHECK(IsWindowEnabled(GetDlgItem(app,104))&&IsWindowEnabled(GetDlgItem(app,107)));
     page(8);click(107);CHECK(wait_enabled(101)==0);CHECK(GetExitCodeProcess(process.hProcess,&exit_code)&&exit_code==STILL_ACTIVE);
     click(108);CHECK(wait_enabled(101)==0);CHECK(GetExitCodeProcess(process.hProcess,&exit_code)&&exit_code==STILL_ACTIVE);
     for(i=0;i<9;++i){page((int)i);CHECK(IsWindow(app));}
     page(0);CHECK(capture("build\\gui-overview.bmp")==0);
     page(6);CHECK(capture("build\\gui-contracts.bmp")==0);
-    /* Full log must be concurrently readable. */
     snprintf(path,sizeof(path),"%s\\stnc-core.log",directory);file=fopen(path,"rb");CHECK(file!=NULL);fclose(file);
 cleanup:
-    if(started){PostMessage(app,WM_CLOSE,0,0);if(WaitForSingleObject(process.hProcess,45000)!=WAIT_OBJECT_0){TerminateProcess(process.hProcess,1);failed=1;}
-        CloseHandle(process.hThread);CloseHandle(process.hProcess);}
+    if(started){PostMessage(app,WM_CLOSE,0,0);if(WaitForSingleObject(process.hProcess,45000)!=WAIT_OBJECT_0){TerminateProcess(process.hProcess,1);failed=1;}CloseHandle(process.hThread);CloseHandle(process.hProcess);}
     if(directory[0]){for(i=0;i<sizeof(files)/sizeof(files[0]);++i){snprintf(path,sizeof(path),"%s\\%s",directory,files[i]);DeleteFileA(path);}RemoveDirectoryA(directory);}
     if(!failed)puts("STNC native GUI smoke tests passed.");return failed;
 }
