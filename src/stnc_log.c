@@ -2,6 +2,12 @@
 #include <string.h>
 #include <time.h>
 
+#if defined(_WIN32)
+#include <fcntl.h>
+#include <io.h>
+#include <share.h>
+#endif
+
 #include "stnc_log.h"
 #include "stnc_platform.h"
 
@@ -55,7 +61,12 @@ int stnc_log_init(void)
     written=snprintf(path,sizeof(path),"%s%c%s",directory,stnc_platform_path_separator(),STNC_LOG_FILENAME);
     if(written<0||(size_t)written>=sizeof(path))return 1;
 #if defined(_WIN32)
-    if(fopen_s(&log_file,path,"a")!=0||log_file==NULL)return 1;
+    {
+        int fd=-1;
+        if(_sopen_s(&fd,path,_O_WRONLY|_O_CREAT|_O_APPEND|_O_TEXT,_SH_DENYNO,_S_IREAD|_S_IWRITE)!=0||fd<0)return 1;
+        log_file=_fdopen(fd,"a");
+        if(log_file==NULL){_close(fd);return 1;}
+    }
 #else
     log_file=fopen(path,"a");
     if(log_file==NULL)return 1;
@@ -65,25 +76,10 @@ int stnc_log_init(void)
     return 0;
 }
 
-void stnc_log_info(const char *message)
-{
-    stnc_log_write("INFO",message);
-}
-
-void stnc_log_warning(const char *message)
-{
-    stnc_log_write("WARNING",message);
-}
-
-void stnc_log_error(const char *message)
-{
-    stnc_log_write("ERROR",message);
-}
-
-size_t stnc_log_recent_count(void)
-{
-    return recent_count;
-}
+void stnc_log_info(const char *message){stnc_log_write("INFO",message);}
+void stnc_log_warning(const char *message){stnc_log_write("WARNING",message);}
+void stnc_log_error(const char *message){stnc_log_write("ERROR",message);}
+size_t stnc_log_recent_count(void){return recent_count;}
 
 int stnc_log_recent_get(size_t index,char *entry,size_t capacity)
 {
