@@ -11,7 +11,9 @@
 static stnc_config config;
 static uint64_t clock_ms;
 static int identity_ok=1;
+static int compensation_ok=1;
 static int job_ready=1;
+static unsigned compensation_calls;
 static unsigned connect_calls;
 static unsigned poll_calls;
 static unsigned search_calls;
@@ -35,6 +37,12 @@ int stnc_identity_status_read(stnc_identity_status *status)
     for(i=5u;i<69u;i++)status->address[i]='a';
     status->address[69]='\0';
     return 0;
+}
+
+int stnc_compensation_ensure(void)
+{
+    compensation_calls++;
+    return compensation_ok?0:1;
 }
 
 void stnc_stratum_client_init(stnc_stratum_client *client){memset(client,0,sizeof(*client));}
@@ -81,13 +89,19 @@ int main(void)
     identity_ok=0;
     CHECK(stnc_background_mining_init()==0);
     stnc_background_mining_tick();stnc_background_mining_status(&status);
-    CHECK(!status.running&&connect_calls==0u&&search_calls==0u);
+    CHECK(!status.running&&compensation_calls==0u&&connect_calls==0u&&search_calls==0u);
     stnc_background_mining_shutdown();
 
-    identity_ok=1;job_ready=1;clock_ms=1000u;
+    identity_ok=1;compensation_ok=0;clock_ms=500u;
     CHECK(stnc_background_mining_init()==0);
     stnc_background_mining_tick();stnc_background_mining_status(&status);
-    CHECK(connect_calls==1u&&poll_calls==1u&&search_calls==1u&&progress_calls==1u);
+    CHECK(!status.running&&compensation_calls==1u&&connect_calls==0u&&search_calls==0u);
+    stnc_background_mining_shutdown();
+
+    compensation_ok=1;job_ready=1;clock_ms=1000u;
+    CHECK(stnc_background_mining_init()==0);
+    stnc_background_mining_tick();stnc_background_mining_status(&status);
+    CHECK(compensation_calls==2u&&connect_calls==1u&&poll_calls==1u&&search_calls==1u&&progress_calls==1u);
     CHECK(status.running&&status.active_backend==STNC_MINING_BACKEND_CPU);
     CHECK(status.hashrate_hps==25u);
     CHECK(strlen(observed_address)==69u&&strncmp(observed_address,"stn0_",5u)==0);
@@ -95,13 +109,13 @@ int main(void)
     memcpy(config.stratum_host,"stratum2.stn-chain.org",sizeof("stratum2.stn-chain.org"));
     config.stratum_port=18476u;job_ready=1;clock_ms=2000u;
     stnc_background_mining_tick();stnc_background_mining_status(&status);
-    CHECK(connect_calls==2u&&status.running);
+    CHECK(compensation_calls==2u&&connect_calls==2u&&status.running);
     CHECK(strlen(observed_address)==69u&&strncmp(observed_address,"stn0_",5u)==0);
 
     config.mining_enabled=0;clock_ms=3000u;stnc_background_mining_tick();
     stnc_background_mining_status(&status);CHECK(!status.enabled&&!status.running);
     stnc_background_mining_shutdown();
 
-    puts("Background mining identity tests passed.");
+    puts("Background mining compensation tests passed.");
     return 0;
 }
