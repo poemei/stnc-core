@@ -28,12 +28,14 @@ typedef struct stnc_mining_service_status {
     uint64_t passes;
     uint64_t attempts;
     uint64_t solutions;
+    uint64_t hashrate_hps;
 } stnc_mining_service_status;
 
 int stnc_mining_service_configure(const stnc_mining_service_config *config);
 void stnc_mining_service_reset(void);
 void stnc_mining_service_set_running(int running, stnc_mining_backend backend);
 void stnc_mining_service_record_pass(uint64_t attempts, int solution);
+void stnc_mining_service_record_rate(uint64_t attempts, uint64_t elapsed_ms);
 void stnc_mining_service_status_read(stnc_mining_service_status *status);
 unsigned int stnc_mining_service_cpu_work_ms(void);
 unsigned int stnc_mining_service_cpu_rest_ms(unsigned int elapsed_work_ms);
