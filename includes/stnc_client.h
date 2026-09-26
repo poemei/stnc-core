@@ -7,6 +7,7 @@
 #include "stnc_background_mining.h"
 #include "stnc_contract_status.h"
 #include "stnc_contract_draft.h"
+#include "stnc_contract_create.h"
 #include "stnc_log.h"
 
 typedef struct stnc_client_snapshot {
@@ -25,7 +26,8 @@ typedef struct stnc_client_snapshot {
 typedef enum stnc_client_operation {
     STNC_CLIENT_REFRESH=0,STNC_CLIENT_CREATE_WALLET,STNC_CLIENT_CREATE_IDENTITY,
     STNC_CLIENT_SEND,STNC_CLIENT_MINING_ON,STNC_CLIENT_MINING_OFF,
-    STNC_CLIENT_CPU_LIMIT,STNC_CLIENT_CONTRACT_LOOKUP,STNC_CLIENT_SAVE_DRAFT
+    STNC_CLIENT_CPU_LIMIT,STNC_CLIENT_CONTRACT_LOOKUP,STNC_CLIENT_SAVE_DRAFT,
+    STNC_CLIENT_CREATE_CONTRACT
 } stnc_client_operation;
 
 typedef struct stnc_client_request {
@@ -39,8 +41,6 @@ typedef struct stnc_client_request {
     uint8_t terms[65536];
 } stnc_client_request;
 
-/* Core and this service have one owning thread. Frontends marshal requests
- * and copy snapshots; they never call Core concurrently with its runtime. */
 int stnc_client_read(stnc_client_snapshot *snapshot);
 int stnc_client_execute(const stnc_client_request *request,char *result,size_t capacity);
 int stnc_client_parse_units(const char *text,uint64_t *units);
