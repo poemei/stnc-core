@@ -145,6 +145,7 @@ void stnc_background_mining_tick(void)
         stnc_mining_service_cpu_work_ms(),&attempts,&found_nonce,digest);
     elapsed_ms=stnc_platform_monotonic_ms()-start_ms;
     stnc_mining_service_record_pass(attempts,result==STNC_MINING_FOUND);
+    stnc_mining_service_record_rate(attempts,elapsed_ms);
     if(attempts>0u&&elapsed_ms>0u&&
        stnc_stratum_client_progress(&stratum,active_job.work_id,attempts,elapsed_ms)!=0){
         stnc_log_error("STN-Stratum progress reporting failed; reconnecting mining session.");
