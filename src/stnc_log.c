@@ -16,6 +16,8 @@
 #define STNC_LOG_PATH_MAX 1024u
 
 static int log_initialized = 0;
+static int console_enabled = 0;
+static int console_drawn = 0;
 static FILE *log_file = NULL;
 static char recent_entries[STNC_LOG_RECENT_CAPACITY][STNC_LOG_ENTRY_MAX];
 static size_t recent_count = 0u;
@@ -31,6 +33,53 @@ static void stnc_log_remember(const char *entry)
     recent_entries[recent_next][length]='\0';
     recent_next=(recent_next+1u)%STNC_LOG_RECENT_CAPACITY;
     if(recent_count<STNC_LOG_RECENT_CAPACITY)recent_count++;
+}
+
+size_t stnc_log_recent_count(void){return recent_count;}
+
+int stnc_log_recent_get(size_t index,char *entry,size_t capacity)
+{
+    size_t oldest,slot,length;
+    if(entry==NULL||capacity==0u||index>=recent_count)return 1;
+    oldest=(recent_count<STNC_LOG_RECENT_CAPACITY)?0u:recent_next;
+    slot=(oldest+index)%STNC_LOG_RECENT_CAPACITY;
+    length=strlen(recent_entries[slot]);
+    if(length+1u>capacity)return 1;
+    memcpy(entry,recent_entries[slot],length+1u);
+    return 0;
+}
+
+void stnc_log_console_refresh(void)
+{
+    size_t index;
+    char entry[STNC_LOG_ENTRY_MAX];
+    if(!console_enabled)return;
+#if defined(_WIN32)
+    if(console_drawn){
+        printf("\033[6A");
+    }
+    printf("\r\033[2KRecent activity\n");
+    for(index=0u;index<STNC_LOG_RECENT_CAPACITY;index++){
+        printf("\r\033[2K");
+        if(index<recent_count&&stnc_log_recent_get(index,entry,sizeof(entry))==0)printf("%s",entry);
+        printf("\n");
+    }
+    fflush(stdout);
+    console_drawn=1;
+#else
+    printf("\nRecent activity\n");
+    for(index=0u;index<recent_count;index++){
+        if(stnc_log_recent_get(index,entry,sizeof(entry))==0)printf("%s\n",entry);
+    }
+    fflush(stdout);
+#endif
+}
+
+void stnc_log_console_enable(int enabled)
+{
+    console_enabled=enabled?1:0;
+    console_drawn=0;
+    if(console_enabled)stnc_log_console_refresh();
 }
 
 static void stnc_log_write(const char *level,const char *message)
@@ -51,6 +100,7 @@ static void stnc_log_write(const char *level,const char *message)
     fprintf(log_file,"%s\n",entry);
     fflush(log_file);
     stnc_log_remember(entry);
+    stnc_log_console_refresh();
 }
 
 int stnc_log_init(void)
@@ -73,30 +123,18 @@ int stnc_log_init(void)
     if(log_file==NULL)return 1;
 #endif
     memset(recent_entries,0,sizeof(recent_entries));recent_count=0u;recent_next=0u;
-    log_initialized=1;
+    console_enabled=0;console_drawn=0;log_initialized=1;
     return 0;
 }
 
 void stnc_log_info(const char *message){stnc_log_write("INFO",message);}
 void stnc_log_warning(const char *message){stnc_log_write("WARNING",message);}
 void stnc_log_error(const char *message){stnc_log_write("ERROR",message);}
-size_t stnc_log_recent_count(void){return recent_count;}
-
-int stnc_log_recent_get(size_t index,char *entry,size_t capacity)
-{
-    size_t oldest,slot,length;
-    if(entry==NULL||capacity==0u||index>=recent_count)return 1;
-    oldest=(recent_count<STNC_LOG_RECENT_CAPACITY)?0u:recent_next;
-    slot=(oldest+index)%STNC_LOG_RECENT_CAPACITY;
-    length=strlen(recent_entries[slot]);
-    if(length+1u>capacity)return 1;
-    memcpy(entry,recent_entries[slot],length+1u);
-    return 0;
-}
 
 void stnc_log_shutdown(void)
 {
     if(!log_initialized)return;
+    console_enabled=0;console_drawn=0;
     if(log_file!=NULL){fflush(log_file);fclose(log_file);log_file=NULL;}
     log_initialized=0;
 }
