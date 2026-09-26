@@ -17,6 +17,7 @@ static unsigned submit_calls=0u;
 int stnc_wallet_store_load(stnc_wallet_key *key){if(!wallet_available||key==NULL)return 1;*key=stored;return 0;}
 int stnc_wallet_address(const stnc_wallet_key *key,char address[STNC_WALLET_ADDRESS_SIZE+1u])
 {(void)key;memcpy(address,"stnw0_1111111111111111111111111111111111111111111111111111111111111111",71u);return 0;}
+void stnc_wallet_clear(stnc_wallet_key *key){if(key!=NULL)memset(key,0,sizeof(*key));}
 int stnc_platform_random(uint8_t *buffer,size_t length){size_t i;if(buffer==NULL||length!=32u)return 1;for(i=0;i<length;i++)buffer[i]=(uint8_t)(i+1u);return 0;}
 void stnc_platform_secure_clear(void *buffer,size_t length){if(buffer!=NULL)memset(buffer,0,length);}
 int stnc_wallet_build_transfer(const stnc_wallet_key *key,const char *source,const char *destination,uint64_t units,const uint8_t nonce[32],uint8_t transaction[214])
