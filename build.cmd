@@ -22,7 +22,7 @@ cl /nologo /W4 /TC /Iincludes tests\test_stnc_directory.c src\stnc_directory.c s
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_http.c src\stnc_http.c /Fe:build\test-stnc-http.exe && build\test-stnc-http.exe || exit /b 1
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_peer_select.c src\stnc_peer_select.c /Fe:build\test-stnc-peer-select.exe && build\test-stnc-peer-select.exe || exit /b 1
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_stnc.c src\stnc_stnc.c /Fe:build\test-stnc-stnc.exe && build\test-stnc-stnc.exe || exit /b 1
-cl /nologo /W4 /TC /Iincludes tests\test_stnc_contract_list.c src\stnc_contract_list.c src\stnc_stnc.c src\stnc_config.c src\stnc_network.c platforms\windows\platform_windows.c /Fe:build\test-stnc-contract-list.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib && build\test-stnc-contract-list.exe || exit /b 1
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_contract_list.c src\stnc_contract_list.c /Fe:build\test-stnc-contract-list.exe && build\test-stnc-contract-list.exe || exit /b 1
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_mining.c src\stnc_mining.c /Fe:build\test-stnc-mining.exe && build\test-stnc-mining.exe || exit /b 1
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_mining_service.c src\stnc_mining_service.c /Fe:build\test-stnc-mining-service.exe && build\test-stnc-mining-service.exe || exit /b 1
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_stratum.c src\stnc_stratum.c /Fe:build\test-stnc-stratum.exe && build\test-stnc-stratum.exe || exit /b 1
