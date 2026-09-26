@@ -6,16 +6,12 @@
 #include "stnc_log.h"
 #include "stnc_gui.h"
 
-/* Keep the desktop frontend in its own translation source while preserving
- * the established command-line build list. */
-#include "../platforms/windows/gui_wallet.c"
-
 int main(int argc,char **argv)
 {
     int result;
     int command_mode;
 
-    if(argc==1||(argc==2&&strcmp(argv[1],"gui")==0))return stnc_gui_wallet_run();
+    if(argc==1||(argc==2&&strcmp(argv[1],"gui")==0))return stnc_gui_run();
     printf("STNC Core\n");
     if(argc==2&&strcmp(argv[1],"run")==0)argc=1;
     command_mode=argc>1;
