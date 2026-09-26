@@ -66,7 +66,7 @@ cl /nologo /W4 /TC /Iincludes ^
     platforms\windows\platform_windows.c ^
     src\crypto\ed25519_donna\ed25519_provider.c ^
     /Fe:build\stnc-core.exe ^
-    /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib user32.lib gdi32.lib comdlg32.lib
+    /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib
 
 if errorlevel 1 (
     echo.
