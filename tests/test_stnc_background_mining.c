@@ -17,6 +17,7 @@ static unsigned int search_calls;
 static uint64_t search_attempts=25u;
 static unsigned int connect_calls;
 static unsigned int progress_calls;
+static int progress_transport_error;
 static unsigned int submit_calls;
 static int search_found;
 static int search_error;
@@ -59,7 +60,7 @@ int stnc_stratum_client_poll_job(stnc_stratum_client *client,stnc_stratum_job *j
 int stnc_stratum_client_submit(stnc_stratum_client *client,const uint8_t work_id[32],uint64_t nonce,stnc_stratum_result *result)
 {(void)client;(void)work_id;(void)nonce;submit_calls++;if(submit_transport_error)return 1;if(result!=NULL)*result=submit_result;return 0;}
 int stnc_stratum_client_progress(stnc_stratum_client *client,const uint8_t work_id[32],uint64_t hashes,uint64_t elapsed_ms)
-{(void)client;(void)work_id;(void)hashes;(void)elapsed_ms;progress_calls++;return 0;}
+{(void)client;(void)work_id;(void)hashes;(void)elapsed_ms;progress_calls++;return progress_transport_error?1:0;}
 stnc_mining_result stnc_mining_search_target_timed(uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE],const uint8_t target[32],
     uint64_t first_nonce,unsigned int budget_ms,uint64_t *attempts,uint64_t *found_nonce,uint8_t digest[32])
 {
@@ -186,10 +187,20 @@ int main(void)
     if(search_calls!=1u||submit_calls!=1u)return TEST_FAIL();
     stnc_background_mining_shutdown();
 
+    progress_transport_error=1;job_ready=1;search_calls=0u;progress_calls=0u;clock_ms=18000u;
+    if(stnc_background_mining_init()!=0)return TEST_FAIL();
+    stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(status.running||search_calls!=1u||progress_calls!=1u)return TEST_FAIL();
+    progress_transport_error=0;job_ready=0;clock_ms=18100u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(status.running||search_calls!=1u)return TEST_FAIL();
+    job_ready=1;clock_ms=18200u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(!status.running||search_calls!=2u||observed_first_nonce!=7u)return TEST_FAIL();
+    stnc_background_mining_shutdown();
+
     wallet_ok=1;memcpy(config.mining_backend,"gpu",sizeof("gpu"));
     config.mining_cpu_limit_percent=2u;search_calls=0u;
     if(stnc_background_mining_init()!=0)return TEST_FAIL();
-    clock_ms=18000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    clock_ms=19000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
     if(status.running||search_calls!=0u)return TEST_FAIL();
     stnc_background_mining_shutdown();
 
