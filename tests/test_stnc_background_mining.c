@@ -102,6 +102,10 @@ int main(void)
     if(!status.running||search_calls!=3u)return TEST_FAIL();
     wallet_ok=0;clock_ms=2000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
     if(status.running)return TEST_FAIL();
+    wallet_ok=1;job_ready=0;clock_ms=2100u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(status.running||search_calls!=3u)return TEST_FAIL();
+    job_ready=1;clock_ms=2200u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(!status.running||search_calls!=4u||observed_first_nonce!=7u)return TEST_FAIL();
     stnc_background_mining_shutdown();
 
     wallet_ok=1;memcpy(config.mining_backend,"cpu",sizeof("cpu"));config.mining_enabled=1;
@@ -185,7 +189,7 @@ int main(void)
     wallet_ok=1;memcpy(config.mining_backend,"gpu",sizeof("gpu"));
     config.mining_cpu_limit_percent=2u;search_calls=0u;
     if(stnc_background_mining_init()!=0)return TEST_FAIL();
-    clock_ms=13000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    clock_ms=18000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
     if(status.running||search_calls!=0u)return TEST_FAIL();
     stnc_background_mining_shutdown();
 
