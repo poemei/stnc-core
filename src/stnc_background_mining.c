@@ -122,17 +122,26 @@ void stnc_background_mining_tick(void)
         clear_stratum_work();return;
     }
 
-    if(!compensation_ready||now>=compensation_check_ms){
-        int was_ready=compensation_ready;
+    if(!compensation_ready){
+        if(compensation_check_ms!=0u&&now<compensation_check_ms){
+            clear_stratum_work();return;
+        }
         if(stnc_compensation_ensure()!=0){
-            compensation_ready=0;
             compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RETRY_MS;
             stnc_log_error("Mining compensation destination is unavailable; background mining will not start.");
             clear_stratum_work();return;
         }
         compensation_ready=1;
         compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RECHECK_MS;
-        if(!was_ready)stnc_log_info("Mining compensation destination submitted to Chain.");
+        stnc_log_info("Mining compensation destination submitted to Chain.");
+    }else if(now>=compensation_check_ms){
+        if(stnc_compensation_ensure()!=0){
+            compensation_ready=0;
+            compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RETRY_MS;
+            stnc_log_error("Mining compensation destination recheck failed; background mining paused.");
+            clear_stratum_work();return;
+        }
+        compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RECHECK_MS;
     }
 
     if(!stratum.connected){
