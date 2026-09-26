@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 
 #include "stnc_log.h"
@@ -7,24 +8,40 @@
 
 static int log_initialized = 0;
 static FILE *log_file = NULL;
+static char recent_entries[STNC_LOG_RECENT_CAPACITY][STNC_LOG_ENTRY_MAX];
+static size_t recent_count = 0u;
+static size_t recent_next = 0u;
+
+static void stnc_log_remember(const char *entry)
+{
+    size_t length;
+    if(entry==NULL)return;
+    length=strlen(entry);
+    if(length>=STNC_LOG_ENTRY_MAX)length=STNC_LOG_ENTRY_MAX-1u;
+    memcpy(recent_entries[recent_next],entry,length);
+    recent_entries[recent_next][length]='\0';
+    recent_next=(recent_next+1u)%STNC_LOG_RECENT_CAPACITY;
+    if(recent_count<STNC_LOG_RECENT_CAPACITY)recent_count++;
+}
 
 static void stnc_log_write(const char *level,const char *message)
 {
-    time_t now;struct tm local_time;
+    time_t now;struct tm local_time;char entry[STNC_LOG_ENTRY_MAX];int written;
     if(!log_initialized||log_file==NULL||level==NULL||message==NULL)return;
     now=time(NULL);
 #if defined(_WIN32)
-    if(localtime_s(&local_time,&now)==0)
+    if(localtime_s(&local_time,&now)!=0)return;
 #else
-    {struct tm *value=localtime(&now);if(value==NULL)return;local_time=*value;
+    {struct tm *value=localtime(&now);if(value==NULL)return;local_time=*value;}
 #endif
-    fprintf(log_file,"[%04d-%02d-%02d %02d:%02d:%02d] [%s] %s\n",
+    written=snprintf(entry,sizeof(entry),"[%04d-%02d-%02d %02d:%02d:%02d] [%s] %s",
         local_time.tm_year+1900,local_time.tm_mon+1,local_time.tm_mday,
         local_time.tm_hour,local_time.tm_min,local_time.tm_sec,level,message);
+    if(written<0)return;
+    entry[sizeof(entry)-1u]='\0';
+    fprintf(log_file,"%s\n",entry);
     fflush(log_file);
-#if !defined(_WIN32)
-    }
-#endif
+    stnc_log_remember(entry);
 }
 
 int stnc_log_init(void)
@@ -32,6 +49,7 @@ int stnc_log_init(void)
     if(log_initialized)return 1;
     log_file=fopen(STNC_LOG_PATH,"a");
     if(log_file==NULL)return 1;
+    memset(recent_entries,0,sizeof(recent_entries));recent_count=0u;recent_next=0u;
     log_initialized=1;
     return 0;
 }
@@ -49,6 +67,23 @@ void stnc_log_warning(const char *message)
 void stnc_log_error(const char *message)
 {
     stnc_log_write("ERROR",message);
+}
+
+size_t stnc_log_recent_count(void)
+{
+    return recent_count;
+}
+
+int stnc_log_recent_get(size_t index,char *entry,size_t capacity)
+{
+    size_t oldest,slot,length;
+    if(entry==NULL||capacity==0u||index>=recent_count)return 1;
+    oldest=(recent_count<STNC_LOG_RECENT_CAPACITY)?0u:recent_next;
+    slot=(oldest+index)%STNC_LOG_RECENT_CAPACITY;
+    length=strlen(recent_entries[slot]);
+    if(length+1u>capacity)return 1;
+    memcpy(entry,recent_entries[slot],length+1u);
+    return 0;
 }
 
 void stnc_log_shutdown(void)
