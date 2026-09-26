@@ -35,6 +35,7 @@
 #define STNC_CHECK_WORK_BASE_REQUEST_ID UINT64_C(17)
 #define STNC_SUBMIT_WORK_REQUEST_ID UINT64_C(18)
 #define STNC_CHAIN_REFRESH_INTERVAL_MS 10000u
+#define STNC_CONFIG_RELOAD_INTERVAL_MS 1000u
 #define STNC_RUNTIME_WAIT_MS 100u
 #define STNC_RECONNECT_INTERVAL_MS 5000u
 #define STNC_ROOT_PEER_RETRY_INTERVAL_MS 30000u
@@ -1668,6 +1669,7 @@ int stnc_core_run(void)
     unsigned int reconnect_elapsed;
     unsigned int root_peer_retry_elapsed;
     unsigned int p2p_refresh_elapsed;
+    unsigned int config_reload_elapsed;
 
     if (core_state != STNC_CORE_STATE_INITIALIZED) {
         return 1;
@@ -1678,10 +1680,18 @@ int stnc_core_run(void)
     reconnect_elapsed = 0;
     root_peer_retry_elapsed = 0;
     p2p_refresh_elapsed = 0;
+    config_reload_elapsed = 0;
     stnc_log_info("STNC Core running.");
 
     while (core_state == STNC_CORE_STATE_RUNNING) {
         stnc_platform_wait(STNC_RUNTIME_WAIT_MS);
+
+        config_reload_elapsed += STNC_RUNTIME_WAIT_MS;
+        if(config_reload_elapsed>=STNC_CONFIG_RELOAD_INTERVAL_MS){
+            config_reload_elapsed=0u;
+            if(stnc_config_reload()!=0)
+                stnc_log_error("Runtime configuration reload failed; retaining previous configuration.");
+        }
 
         if (stnc_network_is_connected(&chain_connection)) {
             refresh_elapsed += STNC_RUNTIME_WAIT_MS;
