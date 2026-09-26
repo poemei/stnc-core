@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include "stnc_contract_create.h"
 #include "stnc_contract_action.h"
 #include "stnc_core.h"
