@@ -17,6 +17,10 @@ static unsigned int search_calls;
 static uint64_t search_attempts=25u;
 static unsigned int connect_calls;
 static unsigned int progress_calls;
+static unsigned int submit_calls;
+static int search_found;
+static stnc_stratum_result submit_result=STNC_STRATUM_RESULT_ACCEPTED;
+static uint64_t observed_first_nonce;
 static uint8_t observed_target[32];
 
 const stnc_config *stnc_config_get(void){return &config;}
@@ -48,18 +52,18 @@ int stnc_stratum_client_poll_job(stnc_stratum_client *client,stnc_stratum_job *j
     memset(job->share_target,0xabu,sizeof(job->share_target));job_ready=0;return 0;
 }
 int stnc_stratum_client_submit(stnc_stratum_client *client,const uint8_t work_id[32],uint64_t nonce,stnc_stratum_result *result)
-{(void)client;(void)work_id;(void)nonce;if(result!=NULL)*result=STNC_STRATUM_RESULT_ACCEPTED;return 0;}
+{(void)client;(void)work_id;(void)nonce;submit_calls++;if(result!=NULL)*result=submit_result;return 0;}
 int stnc_stratum_client_progress(stnc_stratum_client *client,const uint8_t work_id[32],uint64_t hashes,uint64_t elapsed_ms)
 {(void)client;(void)work_id;(void)hashes;(void)elapsed_ms;progress_calls++;return 0;}
 stnc_mining_result stnc_mining_search_target_timed(uint8_t block[STNC_STNC_BLOCK_HEADER_SIZE],const uint8_t target[32],
     uint64_t first_nonce,unsigned int budget_ms,uint64_t *attempts,uint64_t *found_nonce,uint8_t digest[32])
 {
     (void)block;if(target==NULL||budget_ms!=20u)return STNC_MINING_ERROR;
-    memcpy(observed_target,target,32u);
-    if(search_calls==0u&&first_nonce!=7u)return STNC_MINING_ERROR;
-    if(search_calls==1u&&first_nonce!=32u)return STNC_MINING_ERROR;
+    memcpy(observed_target,target,32u);observed_first_nonce=first_nonce;
     search_calls++;*attempts=search_attempts;*found_nonce=0u;memset(digest,0,32u);
-    clock_ms+=20u;return STNC_MINING_EXHAUSTED;
+    clock_ms+=20u;
+    if(search_found){*found_nonce=first_nonce+search_attempts-1u;return STNC_MINING_FOUND;}
+    return STNC_MINING_EXHAUSTED;
 }
 
 static int fail_at(int line){fprintf(stderr,"Background mining test failed at line %d.\n",line);return 1;}
@@ -93,6 +97,26 @@ int main(void)
     wallet_ok=0;clock_ms=2000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
     if(status.running)return TEST_FAIL();
     stnc_background_mining_shutdown();
+
+    wallet_ok=1;memcpy(config.mining_backend,"cpu",sizeof("cpu"));config.mining_enabled=1;
+    search_found=1;submit_result=STNC_STRATUM_RESULT_ACCEPTED;job_ready=1;clock_ms=4000u;
+    if(stnc_background_mining_init()!=0)return TEST_FAIL();
+    stnc_background_mining_tick();
+    if(submit_calls!=1u||observed_first_nonce!=7u)return TEST_FAIL();
+    clock_ms=5000u;stnc_background_mining_tick();
+    if(submit_calls!=2u||observed_first_nonce!=32u)return TEST_FAIL();
+    submit_result=STNC_STRATUM_RESULT_REJECTED;clock_ms=6000u;stnc_background_mining_tick();
+    if(submit_calls!=3u||observed_first_nonce!=57u)return TEST_FAIL();
+    submit_result=STNC_STRATUM_RESULT_STALE;clock_ms=7000u;stnc_background_mining_tick();
+    if(submit_calls!=4u||observed_first_nonce!=82u)return TEST_FAIL();
+    clock_ms=8000u;stnc_background_mining_tick();
+    if(submit_calls!=4u)return TEST_FAIL();
+    job_ready=1;submit_result=STNC_STRATUM_RESULT_PROVIDER;clock_ms=9000u;stnc_background_mining_tick();
+    if(submit_calls!=5u||observed_first_nonce!=7u)return TEST_FAIL();
+    clock_ms=10000u;stnc_background_mining_tick();
+    if(submit_calls!=5u)return TEST_FAIL();
+    stnc_background_mining_shutdown();
+    search_found=0;
 
     wallet_ok=1;memcpy(config.mining_backend,"gpu",sizeof("gpu"));
     if(stnc_background_mining_init()!=0)return TEST_FAIL();
