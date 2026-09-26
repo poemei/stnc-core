@@ -49,6 +49,8 @@
 #define STNC_HISTORY_EVIDENCE_MAX_BYTES STNC_STNC_MAX_PAYLOAD
 
 static stnc_core_state core_state = STNC_CORE_STATE_UNINITIALIZED;
+static int have_peer_comparison;
+static uint8_t compared_peer_tip[32];
 static stnc_network_connection chain_connection;
 static stnc_network_connection p2p_connection;
 static stnc_core_chain_state chain_state;
@@ -246,6 +248,7 @@ static int stnc_core_probe_selected_peer_headers(
     uint64_t first_index,available;
     char message[512];
 
+    have_peer_comparison=0;
     if(peer_state==NULL||!chain_state.available||!stnc_network_is_connected(&p2p_connection)){
         stnc_log_error("Selected Chain P2P synchronization prerequisites are unavailable.");return 1;
     }
@@ -308,6 +311,7 @@ static int stnc_core_probe_selected_peer_headers(
         return stnc_core_submit_peer_history(peer_state->block_count);
     }else{
         stnc_log_info("Selected Chain P2P synchronization is current.");
+        memcpy(compared_peer_tip,chain_state.tip_id,32);have_peer_comparison=1;
     }
     return 0;
 }
@@ -1275,32 +1279,18 @@ int stnc_core_init(void)
     stnc_log_info("Connecting to configured Chain peer.");
 
     if (stnc_core_connect_configured_peer(1) != 0) {
-        stnc_log_error("Configured peer failed STNC v2 qualification.");
-        stnc_network_shutdown();
-        stnc_config_shutdown();
-        stnc_log_shutdown();
-        stnc_platform_shutdown();
-        core_state = STNC_CORE_STATE_UNINITIALIZED;
-        return 1;
+        stnc_log_warning("Chain is unavailable. Local wallet/identity features remain available; reconnect scheduled.");
+    } else {
+        stnc_log_info("Configured Chain peer qualified.");
+        if (stnc_core_qualify_root_peer() != 0) {
+            root_peer_capabilities = 0;
+            stnc_log_warning("Chain P2P root peer is currently unavailable.");
+        }
+        if (stnc_core_discover_directory_peers() != 0)
+            stnc_log_info("Continuing without the public peer directory.");
+        if (stnc_core_select_peer() != 0)
+            stnc_log_warning("Automatic Chain P2P peer selection failed.");
     }
-
-    stnc_log_info("Chain connection established.");
-    stnc_log_info("Configured Chain peer qualified.");
-
-    if (stnc_core_qualify_root_peer() != 0) {
-        root_peer_capabilities = 0;
-        stnc_log_error("Configured Chain P2P root peer is currently unavailable.");
-        stnc_log_info("STNC Core will continue using the qualified Chain RPC connection.");
-    }
-
-    if (stnc_core_discover_directory_peers() != 0) {
-        stnc_log_info("STNC Core will continue without the public peer directory.");
-    }
-
-    if (stnc_core_select_peer() != 0) {
-        stnc_log_error("Automatic Chain P2P peer selection failed.");
-    }
-
     if (stnc_background_mining_init() != 0) {
         stnc_log_error("Background mining service initialization failed.");
         stnc_core_shutdown();
@@ -1663,106 +1653,97 @@ int stnc_core_submit_transaction(const uint8_t *transaction,size_t transaction_l
     free(request);return rc;
 }
 
-int stnc_core_run(void)
+int stnc_core_tick(void)
 {
-    unsigned int refresh_elapsed;
-    unsigned int reconnect_elapsed;
-    unsigned int root_peer_retry_elapsed;
-    unsigned int p2p_refresh_elapsed;
-    unsigned int config_reload_elapsed;
-
-    if (core_state != STNC_CORE_STATE_INITIALIZED) {
-        return 1;
+    static unsigned int refresh_elapsed,reconnect_elapsed,root_peer_retry_elapsed;
+    static unsigned int p2p_refresh_elapsed,config_reload_elapsed;
+    if(core_state==STNC_CORE_STATE_INITIALIZED){
+        refresh_elapsed=reconnect_elapsed=root_peer_retry_elapsed=0;
+        p2p_refresh_elapsed=config_reload_elapsed=0;
+        core_state=STNC_CORE_STATE_RUNNING;
+        stnc_log_info("STNC Core running.");
+    }
+    if(core_state!=STNC_CORE_STATE_RUNNING)return 1;
+    config_reload_elapsed += STNC_RUNTIME_WAIT_MS;
+    if(config_reload_elapsed>=STNC_CONFIG_RELOAD_INTERVAL_MS){
+        config_reload_elapsed=0u;
+        if(stnc_config_reload()!=0)
+            stnc_log_error("Runtime configuration reload failed; retaining previous configuration.");
     }
 
-    core_state = STNC_CORE_STATE_RUNNING;
-    refresh_elapsed = 0;
-    reconnect_elapsed = 0;
-    root_peer_retry_elapsed = 0;
-    p2p_refresh_elapsed = 0;
-    config_reload_elapsed = 0;
-    stnc_log_info("STNC Core running.");
+    if (stnc_network_is_connected(&chain_connection)) {
+        refresh_elapsed += STNC_RUNTIME_WAIT_MS;
+        stnc_background_mining_tick();
+        reconnect_elapsed = 0;
 
-    while (core_state == STNC_CORE_STATE_RUNNING) {
-        stnc_platform_wait(STNC_RUNTIME_WAIT_MS);
+        if (root_peer_capabilities == 0) {
+            root_peer_retry_elapsed += STNC_RUNTIME_WAIT_MS;
 
-        config_reload_elapsed += STNC_RUNTIME_WAIT_MS;
-        if(config_reload_elapsed>=STNC_CONFIG_RELOAD_INTERVAL_MS){
-            config_reload_elapsed=0u;
-            if(stnc_config_reload()!=0)
-                stnc_log_error("Runtime configuration reload failed; retaining previous configuration.");
-        }
-
-        if (stnc_network_is_connected(&chain_connection)) {
-            refresh_elapsed += STNC_RUNTIME_WAIT_MS;
-            stnc_background_mining_tick();
-            reconnect_elapsed = 0;
-
-            if (root_peer_capabilities == 0) {
-                root_peer_retry_elapsed += STNC_RUNTIME_WAIT_MS;
-
-                if (root_peer_retry_elapsed >= STNC_ROOT_PEER_RETRY_INTERVAL_MS) {
-                    root_peer_retry_elapsed = 0;
-                    stnc_log_info("Retrying Chain P2P root peer qualification.");
-
-                    if (stnc_core_qualify_root_peer() != 0) {
-                        stnc_log_error("Chain P2P root peer remains unavailable.");
-                    }
-                }
-            } else {
+            if (root_peer_retry_elapsed >= STNC_ROOT_PEER_RETRY_INTERVAL_MS) {
                 root_peer_retry_elapsed = 0;
-            }
+                stnc_log_info("Retrying Chain P2P root peer qualification.");
 
-            if (stnc_network_is_connected(&p2p_connection)) {
-                p2p_refresh_elapsed += STNC_RUNTIME_WAIT_MS;
-                if (p2p_refresh_elapsed >= STNC_P2P_REFRESH_INTERVAL_MS) {
-                    p2p_refresh_elapsed = 0;
-                    if (stnc_core_refresh_selected_peer() != 0) {
-                        stnc_log_info("Selected Chain P2P peer refresh failed; reselection scheduled.");
-                    }
-                }
-            } else {
-                p2p_refresh_elapsed += STNC_RUNTIME_WAIT_MS;
-                if (p2p_refresh_elapsed >= STNC_RECONNECT_INTERVAL_MS) {
-                    p2p_refresh_elapsed = 0;
-                    stnc_log_info("Reselecting Chain P2P peer.");
-                    if (stnc_core_select_peer() != 0) {
-                        stnc_log_error("Chain P2P peer reselection failed.");
-                    }
-                }
-            }
-
-            if (refresh_elapsed >= STNC_CHAIN_REFRESH_INTERVAL_MS) {
-                refresh_elapsed = 0;
-                if (stnc_core_refresh_chain_state() != 0) {
-                    reconnect_elapsed = 0;
-                    stnc_log_info("Reconnect scheduled.");
+                if (stnc_core_qualify_root_peer() != 0) {
+                    stnc_log_error("Chain P2P root peer remains unavailable.");
                 }
             }
         } else {
-            refresh_elapsed = 0;
-            reconnect_elapsed += STNC_RUNTIME_WAIT_MS;
+            root_peer_retry_elapsed = 0;
+        }
 
-            if (reconnect_elapsed >= STNC_RECONNECT_INTERVAL_MS) {
-                reconnect_elapsed = 0;
-                stnc_log_info("Reconnecting to configured Chain peer.");
-
-                if (stnc_core_connect_configured_peer(0) == 0) {
-                    stnc_log_info("Chain connection restored.");
-                } else {
-                    stnc_log_error("Chain reconnect failed.");
+        if (stnc_network_is_connected(&p2p_connection)) {
+            p2p_refresh_elapsed += STNC_RUNTIME_WAIT_MS;
+            if (p2p_refresh_elapsed >= STNC_P2P_REFRESH_INTERVAL_MS) {
+                p2p_refresh_elapsed = 0;
+                if (stnc_core_refresh_selected_peer() != 0) {
+                    stnc_log_info("Selected Chain P2P peer refresh failed; reselection scheduled.");
+                }
+            }
+        } else {
+            p2p_refresh_elapsed += STNC_RUNTIME_WAIT_MS;
+            if (p2p_refresh_elapsed >= STNC_RECONNECT_INTERVAL_MS) {
+                p2p_refresh_elapsed = 0;
+                stnc_log_info("Reselecting Chain P2P peer.");
+                if (stnc_core_select_peer() != 0) {
+                    stnc_log_error("Chain P2P peer reselection failed.");
                 }
             }
         }
-    }
 
-    if(core_state==STNC_CORE_STATE_STOPPING)
-        stnc_log_info("STNC Core runtime loop stopped by console stop request.");
-    else
-        stnc_log_error("STNC Core runtime loop exited unexpectedly.");
+        if (refresh_elapsed >= STNC_CHAIN_REFRESH_INTERVAL_MS) {
+            refresh_elapsed = 0;
+            if (stnc_core_refresh_chain_state() != 0) {
+                reconnect_elapsed = 0;
+                stnc_log_info("Reconnect scheduled.");
+            }
+        }
+    } else {
+        refresh_elapsed = 0;
+        reconnect_elapsed += STNC_RUNTIME_WAIT_MS;
+
+        if (reconnect_elapsed >= STNC_RECONNECT_INTERVAL_MS) {
+            reconnect_elapsed = 0;
+            stnc_log_info("Reconnecting to configured Chain peer.");
+
+            if (stnc_core_connect_configured_peer(0) == 0) {
+                stnc_log_info("Chain connection restored.");
+            } else {
+                stnc_log_error("Chain reconnect failed.");
+            }
+        }
+    }
     return 0;
 }
 
+int stnc_core_run(void)
+{
+    if(core_state!=STNC_CORE_STATE_INITIALIZED)return 1;
+    do {
+        stnc_platform_wait(STNC_RUNTIME_WAIT_MS);
+        if(stnc_core_tick()!=0)break;
+    } while(core_state==STNC_CORE_STATE_RUNNING);
+    return 0;
+}
 void stnc_core_request_stop(void)
 {
     if (core_state != STNC_CORE_STATE_RUNNING) {
@@ -1830,4 +1811,7 @@ void stnc_core_get_runtime_status(stnc_core_runtime_status *status)
     status->candidate_count=peer_candidates.count;
     status->qualified_count=qualified_peers.count;
     status->root_peer_capabilities=root_peer_capabilities;
+    status->peer_current=have_peer_comparison&&status->chain_connected&&
+        status->p2p_connected&&status->chain_state_available&&
+        memcmp(compared_peer_tip,chain_state.tip_id,32)==0;
 }

@@ -7,5 +7,6 @@ int stnc_background_mining_init(void);
 void stnc_background_mining_tick(void);
 void stnc_background_mining_shutdown(void);
 void stnc_background_mining_status(stnc_mining_service_status *status);
+int stnc_background_mining_connected(void);
 
 #endif

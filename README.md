@@ -1,127 +1,38 @@
 # STNC Core
 
-STNC Core is the desktop client for the STN Chain network.
+STNC Core is the native C desktop client for STN Chain. One set of portable
+services supports the Windows GUI and administrative CLI. Chain determines
+accepted balances, transactions and Contract state.
 
-It is being developed as a small, deterministic, platform-agnostic application providing users with access to STN Chain functionality without duplicating Chain consensus behavior inside the client.
+**Version:** 0.1.0-dev. This is a development build, not a production release.
 
-STNC Core will provide a unified interface for:
+Build and run from an MSVC developer command prompt:
 
-- Chain synchronization and status
-- STN Chain identity
-- Wallet functionality
-- Contract management
-- Background mining
-- Mining configuration
-- Peer discovery and connectivity
-- User configuration
+```text
+build
+build\stnc-core.exe
+```
 
-STNC Core communicates with STN Chain through the native STNC protocol.
+The default launch opens the GUI. `stnc-core gui` also opens it;
+`stnc-core run` starts the persistent console runtime. Existing CLI commands
+remain available through `stnc-core help`.
 
----
+The GUI provides Overview, Wallet, Send, Contracts, Mining, Network, Activity and
+Identity. Contract drafting/export and accepted summary lookup are implemented.
+Full accepted Contract details and lifecycle submission await the documented
+Chain authority/detail read interfaces; unavailable operations are labeled.
+Identity private custody is separate from the economic wallet.
 
-## Development Status
+No browser runtime, web server, C++, C#, .NET or third-party GUI framework is
+required. Win32 presentation is isolated under platforms/windows. Local creation
+and drafting work while the Chain connection is unavailable; accepted state is
+never invented or optimistically updated.
 
-**Current Version:** `0.1.0-dev`
+- [Operator guide](docs/OPERATOR_GUIDE.md)
+- [Contract integration and limitations](docs/CONTRACT_INTEGRATION.md)
+- [Required Chain interface implementation order](docs/CHAIN_INTERFACE_ORDER.md)
+- [Changelog](docs/CHANGELOG.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Contributing](docs/CONTRIBUTING.md)
 
-**Current Development Phase:** Phase 1 — Core Runtime Foundation
-
-STNC Core is under active development and is not currently a production-qualified release.
-
-### Implemented
-
-- Core runtime lifecycle
-- Explicit runtime state management
-- Controlled initialization
-- Controlled execution
-- Controlled shutdown
-- Platform abstraction
-- Windows platform backend
-- Windows command-line build
-- `/W4` development compilation
-
-Current runtime lifecycle:
-
-~~~text
-UNINITIALIZED
-      |
-      | initialize
-      v
-INITIALIZED
-      |
-      | run
-      v
-RUNNING
-      |
-      | stop
-      v
-STOPPING
-      |
-      | shutdown
-      v
-STOPPED
-~~~
-
-### In Development
-
-Phase 1 will establish the remaining application foundation, including:
-
-- Logging
-- Configuration
-- Windows application hosting
-- Runtime error handling
-- Controlled startup and shutdown behavior
-
-### Planned
-
-Later development phases will introduce:
-
-- STNC v2 connectivity
-- Peer bootstrap and discovery
-- Automatic peer selection
-- Chain synchronization
-- Windows desktop interface
-- Wallet and identity management
-- Background mining
-- CPU, GPU, and USB ASIC mining selection
-- STN-Stratum integration
-- Contract management
-- Recovery and resilience
-- Linux platform support
-- Production qualification
-
----
-
-## Architecture
-
-STNC Core is an application client.
-
-It does not independently define or replace STN Chain consensus.
-
-~~~text
-STNC Core
-    |
-    | STNC
-    v
-STN Chain
-~~~
-
-Chain state presented by STNC Core is obtained through defined STN Chain interfaces. Validation and acceptance of Chain state remain the responsibility of STN Chain consensus.
-
-Platform-specific behavior is isolated behind platform abstractions.
-
-~~~text
-STNC Core Runtime
-        |
-        v
-Platform Interface
-        |
-        +----------------+
-        |                |
-        v                v
-     Windows           Linux
-~~~
-
-## Documentation
-- [CHANGELOG](/docs/CHANGELOG.md)
-- [ROADMAP](/docs/ROADMAP.md)
-- [CONTRIBUTING](/docs/CONTRIBUTING.md)
+**Small. Deterministic. Easy to use.** Probable != Determinate.

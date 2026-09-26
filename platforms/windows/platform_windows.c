@@ -573,6 +573,7 @@ int stnc_platform_write_private_file(const char *path,const unsigned char *buffe
     result=SetEntriesInAclA(1,&access,NULL,&acl);if(result!=ERROR_SUCCESS)goto done;
     if(!InitializeSecurityDescriptor(&descriptor,SECURITY_DESCRIPTOR_REVISION))goto done;
     if(!SetSecurityDescriptorDacl(&descriptor,TRUE,acl,FALSE))goto done;
+    if(!SetSecurityDescriptorControl(&descriptor,SE_DACL_PROTECTED,SE_DACL_PROTECTED))goto done;
     attributes.nLength=sizeof(attributes);attributes.lpSecurityDescriptor=&descriptor;attributes.bInheritHandle=FALSE;
     file=CreateFileA(path,GENERIC_WRITE,0,&attributes,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,NULL);
     if(file==INVALID_HANDLE_VALUE)goto done;

@@ -12,6 +12,7 @@ int main(void)
     const char *a="stnc0_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";stnc_contract_status s;
     if(stnc_contract_status_read(NULL,&s)==0||stnc_contract_status_read(a,NULL)==0)return 1;
     if(stnc_contract_status_read("stnw0_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",&s)==0)return 1;
+    if(stnc_contract_status_read("stnc0_G123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",&s)==0)return 1;
     query_result=0;if(stnc_contract_status_read(a,&s)!=0||!s.available||strcmp(s.address,a)!=0||s.state.state!=4u||s.state.type!=6u)return 1;
     query_result=1;if(stnc_contract_status_read(a,&s)!=0||s.available||strcmp(s.address,a)!=0)return 1;
     if(strcmp(stnc_contract_state_name(4u),"approvals")!=0||strcmp(stnc_contract_state_name(99u),"unknown")!=0)return 1;

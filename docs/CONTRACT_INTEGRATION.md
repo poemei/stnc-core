@@ -1,44 +1,53 @@
-# Contract integration boundary audit
+# Contract integration status
 
-Inspected 2026-09-25 against the local STNC Core, STN Chain and stn-chain.org sources.
+The section-16 identity choice is resolved: Contracts use a separate Core STN
+identity and identity.key. Wallet private keys never sign Contract actions.
+The existing wallet-derived public mining identity remains unchanged.
 
-## Confirmed interfaces
+Implemented and deterministically tested:
 
-- Chain `docs/CONTRACTS.md` defines STCT drafts, seven STNT type-5 actions,
-  stable draft-derived addresses, scoped authority and accepted lifecycle state.
-- Chain `includes/stn_rpc.h:36` and `src/stn_node_service.c:91` expose
-  CONTRACT_STATE as 26 bytes: state, type, sequence, creation value,
-  participant count and terms length. It does not return participant entries,
-  terms bytes, canonical draft bytes, votes or authority evidence.
-- Chain block retrieval exists. Recovering immutable draft evidence from
-  accepted blocks is a possible client indexing approach; it must handle
-  reorganizations and must not independently replay Contract consensus to
-  declare accepted state. The absence of a full Contract query is not the
-  absence of the Contract Engine.
-- The inspected ChAoS MVC explorer client exposes info and block retrieval;
-  it supplies no additional Contract or authority API.
-- Core stores a wallet key and uses its public key for mining identity
-  derivation. It currently has no Contract identity selection or authority
-  evidence provisioning service.
+- Identity status, creation, public address and actor public key, no-replacement
+  private persistence, and service-owned signing.
+- STCT Draft/0 construction for all six types, five participant roles, ordered
+  participants, exact terms, explicit creation value, and local address derivation.
+- Native drafting and export, CLI drafting from terms files, and accepted
+  summary lookup through existing method 11.
+- STNT type-5 action construction for all seven actions using the identity
+  signing service, exact Chain domain/field ordering, next sequence, and supplied
+  evidence matching actor/action/origin context. This builder does not submit,
+  establish authority or infer an accepted transition.
 
-## Security decision requiring operator direction
+## Participant identity representation
 
-Chain `src/stn_chain.c:485` requires both a valid action signature and matching
-scoped authority evidence backed by an accepted, unrevoked root-issued grant.
-A participant role, wallet key or mining identity does not supply that grant.
+The executable Chain authority/approval implementation uses canonical Ed25519
+public keys as actors and compares participant bytes directly with those keys
+(stn_identity_derive, stn_contract_vote_eligible). Generic typed-address derivation
+produces stn0_ text from SHA256(source); a public key cannot be recovered from
+that hash. Drafting accepts the actor public key shown on Core's Identity page,
+while Identity also shows its derived stn0_ address. It does not strip an address
+prefix and mistake a digest for the signing actor.
 
-Before implementing Contract signing, specify whether the operator is to use:
+The broad Contract documentation's reference to identity-address identifiers
+needs clarification against these implemented approval semantics; no consensus
+change is made here. Drafting from an address alone would additionally need an
+accepted public-key resolution interface or a supplied public key.
 
-1. The existing Core wallet key as the Contract actor, with corresponding
-   externally issued scoped grants; or
-2. A separately provisioned organizational identity and its scoped grants.
+## Deliberately unavailable surfaces
 
-Also identify how operators receive/import that authority evidence. Core can
-construct the defined evidence fields, but cannot grant itself authority.
-These choices affect key custody and organizational identity, and are not
-selected by the current client source or the job order. Execution pauses under
-job-order section 16's security-sensitive decision exception.
+The current protocol reports Contract summary state, type, sequence, creation
+value, participant count and terms byte count. It does not return participant
+or terms bytes, or accepted scoped grant evidence. The inspected ChAoS MVC
+explorer exposes block/info access, not these additional reads.
 
-No Chain protocol or consensus changes were made. Contract construction,
-actions, the GUI and remaining job-order workflows are not claimed complete.
-The bounded transfer CLI refactor is independent of this decision.
+The GUI labels lifecycle signing/submission unavailable. Create, Amend, Approve,
+Reject, Execute, Revoke and Close are not exposed as working network operations.
+Full accepted participant/terms/vote presentation, grant lookup and action
+submission/accepted-state refresh depend on the two APIs specified in
+[CHAIN_INTERFACE_ORDER.md](CHAIN_INTERFACE_ORDER.md). No nonexistent method is
+called and no cached or imported grant is called accepted.
+
+The proposed read interfaces are Chain repository work, not consensus redesign.
+The implementation order specifies requests, responses, owners, bounds, failure
+behavior and tests. GUI, wallet, transfers, identity, mining, network, activity,
+drafting and existing Contract lookup proceed independently. Full end-to-end
+Contract lifecycle qualification is not claimed.

@@ -1,5 +1,7 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "stnc_command.h"
@@ -9,6 +11,7 @@
 #include "stnc_mining.h"
 #include "stnc_contract_status.h"
 #include "stnc_transfer.h"
+#include "stnc_client.h"
 #include "stnc_stnc.h"
 #include "stnc_wallet.h"
 #include "stnc_wallet_store.h"
@@ -31,7 +34,10 @@ static void stnc_command_print_usage(void)
         "  stnc-core wallet show\n"
         "  stnc-core wallet status\n"
         "  stnc-core wallet balance\n"
+        "  stnc-core gui | run\n"
+        "  stnc-core identity status | create | show\n"
         "  stnc-core transfer <stnw0_...> <units>\n"
+        "  stnc-core contract draft <type 1-6> <created> <terms-file> <new-file> [<actor-key>:<role 1-5> ...]\n"
         "  stnc-core contract state <stnc0_...>\n"
         "  stnc-core mining status\n"
         "  stnc-core mining service\n"
@@ -146,9 +152,36 @@ static int stnc_command_balance(int argc, char **argv)
     return 0;
 }
 
+static int stnc_command_draft(int argc,char **argv)
+{
+    stnc_client_request *request;FILE *terms;char result[2048];uint64_t type;int i,rc=1;
+    if(argc<7||argc>39||stnc_client_parse_units(argv[3],&type)!=0||type>6||strlen(argv[6])>=1024){
+        stnc_command_print_usage();return 1;
+    }
+    request=(stnc_client_request *)calloc(1,sizeof(*request));if(!request)return 1;
+    request->operation=STNC_CLIENT_SAVE_DRAFT;request->draft.type=(uint16_t)type;
+    if(strcmp(argv[4],"0")!=0&&stnc_client_parse_units(argv[4],&request->draft.created_at)!=0)goto done;
+    memcpy(request->path,argv[6],strlen(argv[6])+1);
+    for(i=7;i<argc;++i){
+        size_t index=(size_t)(i-7);uint8_t actor[32];
+        if(strlen(argv[i])!=66||argv[i][64]!=':'||argv[i][65]<'1'||argv[i][65]>'5')goto done;
+        memcpy(request->draft.participants[index].public_key,argv[i],64);
+        request->draft.participants[index].role=(uint16_t)(argv[i][65]-'0');
+        if(stnc_contract_actor_decode(request->draft.participants[index].public_key,actor)!=0)goto done;
+    }
+    request->draft.participant_count=(size_t)(argc-7);
+    terms=fopen(argv[5],"rb");if(!terms)goto done;
+    request->draft.terms_length=fread(request->terms,1,sizeof(request->terms),terms);
+    if(ferror(terms)||fgetc(terms)!=EOF){fclose(terms);goto done;}fclose(terms);
+    rc=stnc_client_execute(request,result,sizeof(result));printf("%s\n",result);
+done:
+    if(rc)fprintf(stderr,"Draft failed: check type, creation value, terms size, participant keys/roles and output path.\n");
+    free(request);return rc;
+}
 static int stnc_command_contract(int argc, char **argv)
 {
     stnc_contract_status status;
+    if(argc>=3&&strcmp(argv[2],"draft")==0)return stnc_command_draft(argc,argv);
     if(argc!=4||strcmp(argv[2],"state")!=0){stnc_command_print_usage();return 1;}
     if(stnc_contract_status_read(argv[3],&status)!=0){fprintf(stderr,"Invalid contract address.\n");return 1;}
     if(!status.available){fprintf(stderr,"Contract state unavailable.\n");return 1;}
@@ -290,18 +323,7 @@ static int stnc_command_mining(int argc,char **argv)
     if(strcmp(argv[2],"enable")==0||strcmp(argv[2],"disable")==0){
         int enabled=strcmp(argv[2],"enable")==0;
         if(argc!=3){stnc_command_print_usage();return 1;}
-        if(enabled){
-            stnc_wallet_key key;char wallet_address[STNC_WALLET_ADDRESS_SIZE+1u];
-            memset(&key,0,sizeof(key));
-            if(!stnc_wallet_store_exists()||stnc_wallet_store_load(&key)!=0||
-               stnc_wallet_address(&key,wallet_address)!=0){
-                stnc_wallet_clear(&key);
-                fprintf(stderr,"Background mining requires a valid stored Core wallet address. Create the wallet first.\n");
-                return 1;
-            }
-            stnc_wallet_clear(&key);
-        }
-        if(stnc_config_set_mining_enabled(enabled)!=0){fprintf(stderr,"Mining configuration update failed.\n");return 1;}
+        if(stnc_client_set_mining(enabled)!=0){fprintf(stderr,"Mining update failed; enabling requires a valid stored Core wallet.\n");return 1;}
         printf("Background mining %s.\n",enabled?"enabled":"disabled");return 0;
     }
     if(strcmp(argv[2],"backend")==0){
@@ -375,7 +397,7 @@ static int stnc_command_wallet(int argc,char **argv)
         printf("%s\n",address);stnc_wallet_clear(&key);return 0;
     }
     if(strcmp(argv[2],"show")==0||strcmp(argv[2],"status")==0||strcmp(argv[2],"balance")==0){
-        if(stnc_wallet_store_load(&key)!=0||stnc_wallet_address(&key,address)!=0){stnc_wallet_clear(&key);fprintf(stderr,"Wallet is unavailable.\n");return 1;}
+        if(strcmp(argv[2],"status")!=0&&(stnc_wallet_store_load(&key)!=0||stnc_wallet_address(&key,address)!=0)){stnc_wallet_clear(&key);fprintf(stderr,"No valid stored Core wallet exists.\n");return 1;}
         if(strcmp(argv[2],"show")==0){printf("%s\n",address);stnc_wallet_clear(&key);return 0;}
         if(strcmp(argv[2],"status")==0){
             stnc_wallet_clear(&key);
@@ -385,7 +407,7 @@ static int stnc_command_wallet(int argc,char **argv)
             if(status.key_valid)printf("  Address: %s\n",status.address);
             if(status.balance_available)printf("  Accepted balance: %" PRIu64 "\n",status.accepted_balance);
             else printf("  Accepted balance: unavailable\n");
-            return status.present&&status.key_valid?0:1;
+            return status.present&&!status.key_valid?1:0;
         }
         if(stnc_core_balance(address,&units)!=0){stnc_wallet_clear(&key);fprintf(stderr,"Wallet balance query failed.\n");return 1;}
         printf("%" PRIu64 "\n",units);stnc_wallet_clear(&key);return 0;
@@ -427,12 +449,27 @@ static int stnc_command_transfer(int argc,char **argv)
     return result.submission==STNC_STNC_SUBMISSION_ADMITTED||
         result.submission==STNC_STNC_SUBMISSION_DUPLICATE?0:1;
 }
+static int stnc_command_identity(int argc,char **argv)
+{
+    stnc_identity_status status;size_t i;
+    if(argc!=3){stnc_command_print_usage();return 1;}
+    if(strcmp(argv[2],"create")==0){
+        if(stnc_identity_create(&status)!=0){fprintf(stderr,"Identity creation failed; an existing identity is never replaced.\n");return 1;}
+    }else if(strcmp(argv[2],"status")==0||strcmp(argv[2],"show")==0){
+        if(stnc_identity_status_read(&status)!=0)return 1;
+    }else{stnc_command_print_usage();return 1;}
+    printf("Identity: %s\n",status.valid?"valid":status.present?"invalid":"not created");
+    if(status.valid){printf("Address: %s\nActor public key: ",status.address);
+        for(i=0;i<32;++i)printf("%02x",(unsigned int)status.public_key[i]);printf("\n");}
+    return status.present&&!status.valid?1:0;
+}
 int stnc_command_run(int argc, char **argv)
 {
     if (argc < 2 || argv == NULL) {
         return 2;
     }
 
+    if (strcmp(argv[1], "identity") == 0) return stnc_command_identity(argc,argv);
     if (strcmp(argv[1], "status") == 0) {
         if (argc != 2) {
             stnc_command_print_usage();

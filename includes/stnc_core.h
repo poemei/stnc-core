@@ -22,6 +22,7 @@ typedef struct stnc_core_runtime_status {
     size_t candidate_count;
     size_t qualified_count;
     uint32_t root_peer_capabilities;
+    int peer_current; /* Last peer evidence matched this accepted Chain tip. */
 } stnc_core_runtime_status;
 
 typedef struct stnc_core_peer_status {
@@ -52,6 +53,8 @@ typedef struct stnc_core_chain_state {
 
 int stnc_core_init(void);
 int stnc_core_run(void);
+/* Single-owner runtime step, normally called every 100ms by the host. */
+int stnc_core_tick(void);
 void stnc_core_request_stop(void);
 void stnc_core_shutdown(void);
 

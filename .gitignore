@@ -13,6 +13,12 @@
 /tests/*
 !/tests/test_address.c
 !/tests/test_record.c
+!/tests/test_stnc_*.c
+
+# Runtime custody and activity are never source artifacts.
+wallet.key
+identity.key
+stnc-core.log
 
 # Visual Studio per-user state and caches
 .vs/

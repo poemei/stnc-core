@@ -3,10 +3,12 @@
 #include "stnc_core.h"
 int stnc_contract_status_read(const char *address,stnc_contract_status *status)
 {
-    stnc_contract_status result;
+    stnc_contract_status result;size_t i;
     if(address==NULL||status==NULL)return 1;
     memset(&result,0,sizeof(result));
     if(strlen(address)!=STNC_STNC_ADDRESS_TYPED_SIZE||memcmp(address,"stnc0_",6u)!=0)return 1;
+    for(i=6;i<STNC_STNC_ADDRESS_TYPED_SIZE;++i)
+        if(!((address[i]>='0'&&address[i]<='9')||(address[i]>='a'&&address[i]<='f')))return 1;
     memcpy(result.address,address,STNC_STNC_ADDRESS_TYPED_SIZE+1u);
     if(stnc_core_contract_state(address,&result.state)!=0){*status=result;return 0;}
     result.available=1;*status=result;return 0;

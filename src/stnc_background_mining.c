@@ -193,3 +193,5 @@ void stnc_background_mining_status(stnc_mining_service_status *status)
 {
     stnc_mining_service_status_read(status);
 }
+
+int stnc_background_mining_connected(void){return initialized&&stratum.connected;}

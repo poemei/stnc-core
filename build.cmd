@@ -25,9 +25,24 @@ if not "%~1"=="" (
 
 if not exist build mkdir build
 
+where cl >nul 2>&1
+if errorlevel 1 (
+    for /f "usebackq tokens=*" %%I in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do call "%%I\VC\Auxiliary\Build\vcvars64.bat" >nul
+)
+where cl >nul 2>&1
+if errorlevel 1 (
+    echo MSVC C Build Tools and a Windows SDK are required.
+    exit /b 1
+)
+
 cl /nologo /W4 /TC /Iincludes ^
     src\main.c ^
     src\stnc_command.c ^
+    src\stnc_client.c ^
+    src\stnc_identity.c ^
+    src\stnc_contract_draft.c ^
+    src\stnc_contract_action.c ^
+    platforms\windows\gui_windows.c ^
     src\stnc_background_mining.c ^
     src\stnc_contract_status.c ^
     src\stnc_core.c ^
@@ -51,7 +66,7 @@ cl /nologo /W4 /TC /Iincludes ^
     platforms\windows\platform_windows.c ^
     src\crypto\ed25519_donna\ed25519_provider.c ^
     /Fe:build\stnc-core.exe ^
-    /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
+    /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib user32.lib gdi32.lib comdlg32.lib
 
 if errorlevel 1 (
     echo.
@@ -145,6 +160,33 @@ build\test-stnc-transfer.exe
 if errorlevel 1 ( echo. & echo TRANSFER TEST FAILED & exit /b 1 )
 
 echo.
+
+if errorlevel 1 exit /b 1
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_identity.c src\stnc_identity.c src\stnc_wallet.c src\stnc_core.c src\stnc_background_mining.c src\stnc_stratum_client.c src\stnc_stratum.c src\stnc_mining_service.c src\stnc_mining.c src\stnc_wallet_store.c src\stnc_log.c src\stnc_config.c src\stnc_directory.c src\stnc_http.c src\stnc_network.c src\stnc_peers.c src\stnc_peer_select.c src\stnc_stnc.c src\stnc_stnp.c platforms\windows\platform_windows.c src\crypto\ed25519_donna\ed25519_provider.c /Fe:build\test-stnc-identity.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
+if errorlevel 1 exit /b 1
+build\test-stnc-identity.exe
+if errorlevel 1 exit /b 1
+
+if errorlevel 1 exit /b 1
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_contract_draft.c src\stnc_contract_draft.c src\stnc_wallet.c src\stnc_core.c src\stnc_background_mining.c src\stnc_stratum_client.c src\stnc_stratum.c src\stnc_mining_service.c src\stnc_mining.c src\stnc_wallet_store.c src\stnc_log.c src\stnc_config.c src\stnc_directory.c src\stnc_http.c src\stnc_network.c src\stnc_peers.c src\stnc_peer_select.c src\stnc_stnc.c src\stnc_stnp.c platforms\windows\platform_windows.c src\crypto\ed25519_donna\ed25519_provider.c /Fe:build\test-stnc-contract_draft.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib
+if errorlevel 1 exit /b 1
+build\test-stnc-contract_draft.exe
+if errorlevel 1 exit /b 1
+
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_client.c src\stnc_client.c /Fe:build\test-stnc-client.exe
+if errorlevel 1 exit /b 1
+build\test-stnc-client.exe
+if errorlevel 1 exit /b 1
+
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_contract_action.c src\stnc_contract_action.c /Fe:build\test-stnc-contract-action.exe
+if errorlevel 1 exit /b 1
+build\test-stnc-contract-action.exe
+if errorlevel 1 exit /b 1
+
+cl /nologo /W4 /TC tests\test_stnc_gui.c /Fe:build\test-stnc-gui.exe /link user32.lib gdi32.lib
+if errorlevel 1 exit /b 1
+build\test-stnc-gui.exe
+if errorlevel 1 exit /b 1
 echo BUILD SUCCESSFUL
 echo build\stnc-core.exe
 

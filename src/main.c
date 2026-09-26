@@ -1,15 +1,19 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "stnc_command.h"
 #include "stnc_core.h"
 #include "stnc_log.h"
+#include "stnc_gui.h"
 
 int main(int argc,char **argv)
 {
     int result;
     int command_mode;
 
+    if(argc==1||(argc==2&&strcmp(argv[1],"gui")==0))return stnc_gui_run();
     printf("STNC Core\n");
+    if(argc==2&&strcmp(argv[1],"run")==0)argc=1;
     command_mode=argc>1;
     result=stnc_core_init();
 
