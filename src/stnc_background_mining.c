@@ -17,7 +17,7 @@
 #define STNC_BACKGROUND_MINING_BLOCK_CAPACITY STNC_STNC_BLOCK_MAX_SIZE
 
 static int initialized;
-static uint64_t next_tick_ms;
+static uint64_t next_work_ms;
 static stnc_stratum_client stratum;
 static uint8_t block[STNC_BACKGROUND_MINING_BLOCK_CAPACITY];
 static stnc_stratum_job active_job;
@@ -53,7 +53,7 @@ int stnc_background_mining_init(void)
     mining.enabled=config->mining_enabled;mining.backend=configured_backend(config->mining_backend);
     mining.cpu_limit_percent=config->mining_cpu_limit_percent;
     if(stnc_mining_service_configure(&mining)!=0)return 1;
-    initialized=1;next_tick_ms=0u;have_job=0;next_nonce=0u;memset(&active_job,0,sizeof(active_job));return 0;
+    initialized=1;next_work_ms=0u;have_job=0;next_nonce=0u;memset(&active_job,0,sizeof(active_job));return 0;
 }
 
 void stnc_background_mining_tick(void)
@@ -70,7 +70,7 @@ void stnc_background_mining_tick(void)
         stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
     }
 
-    now=stnc_platform_monotonic_ms();if(now<next_tick_ms)return;next_tick_ms=now+STNC_BACKGROUND_MINING_RETRY_MS;
+    now=stnc_platform_monotonic_ms();
     config=stnc_config_get();if(config==NULL||mining_identity(identity)!=0){
         stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
     }
@@ -94,6 +94,8 @@ void stnc_background_mining_tick(void)
         active_job=job;next_nonce=job.initial_nonce;have_job=1;
     }
     if(!have_job)return;
+    if(now<next_work_ms)return;
+    next_work_ms=now+STNC_BACKGROUND_MINING_RETRY_MS;
 
     if(!status.running||status.active_backend!=STNC_MINING_BACKEND_CPU)
         stnc_log_info("Background mining active through STN-Stratum: backend=cpu.");
@@ -139,7 +141,7 @@ void stnc_background_mining_shutdown(void)
 {
     if(!initialized)return;
     stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
-    stnc_mining_service_reset();initialized=0;next_tick_ms=0u;have_job=0;next_nonce=0u;
+    stnc_mining_service_reset();initialized=0;next_work_ms=0u;have_job=0;next_nonce=0u;
     memset(&active_job,0,sizeof(active_job));memset(block,0,sizeof(block));
 }
 
