@@ -60,6 +60,19 @@ if errorlevel 1 (
     exit /b 1
 )
 
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_log.c src\stnc_log.c /Fe:build\test-stnc-log.exe
+if errorlevel 1 (
+    echo.
+    echo LOG TEST BUILD FAILED
+    exit /b 1
+)
+build\test-stnc-log.exe
+if errorlevel 1 (
+    echo.
+    echo LOG TEST FAILED
+    exit /b 1
+)
+
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_stnp.c src\stnc_stnp.c /Fe:build\test-stnc-stnp.exe
 if errorlevel 1 (
     echo.
