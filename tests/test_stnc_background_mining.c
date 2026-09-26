@@ -98,6 +98,9 @@ int main(void)
     CHECK(!status.running&&compensation_calls==1u&&connect_calls==0u&&search_calls==0u);
     clock_ms=1000u;
     stnc_background_mining_tick();
+    CHECK(compensation_calls==1u&&connect_calls==0u);
+    clock_ms=5500u;
+    stnc_background_mining_tick();
     CHECK(compensation_calls==2u&&connect_calls==0u);
     stnc_background_mining_shutdown();
 
