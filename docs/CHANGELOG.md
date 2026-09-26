@@ -9,6 +9,22 @@ STNC Core is currently under active development. Development versions do not rep
 
 ---
 
+## Unreleased
+
+- Route CLI transfers through `stnc_transfer_send`, removing duplicate wallet
+  loading, signing, submission, balance querying and result-name mapping.
+- Display destination, units, submission result, optional transaction ID and
+  service-reported accepted balance. Rejected submissions return failure.
+- Extend transfer tests for an admitted submission without an ID or available
+  balance, and verify invalid/no-wallet/transport-error paths do not increase
+  successful submission calls.
+- Validation: full `build.cmd` qualification passes with `BUILD SUCCESSFUL`
+  and `build\stnc-core.exe`; `git diff --check` passes. Two existing C4005
+  macro-redefinition warnings remain in wallet-store/config test compilation.
+- Record Contract interface findings and the outstanding actor-key/authority
+  provisioning decision in `docs/CONTRACT_INTEGRATION.md`. The full job order,
+  including the GUI, remains incomplete pending that section-16 decision.
+
 ## [0.1.0-dev] - 2026-09-22
 
 ### Added

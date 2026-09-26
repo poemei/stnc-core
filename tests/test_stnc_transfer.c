@@ -11,6 +11,7 @@ static int wallet_available=1;
 static int submit_error=0;
 static uint16_t submit_result=STNC_STNC_SUBMISSION_ADMITTED;
 static int balance_error=0;
+static int supply_transaction_id=1;
 static uint64_t balance_value=125u;
 static unsigned submit_calls=0u;
 
@@ -23,7 +24,7 @@ void stnc_platform_secure_clear(void *buffer,size_t length){if(buffer!=NULL)mems
 int stnc_wallet_build_transfer(const stnc_wallet_key *key,const char *source,const char *destination,uint64_t units,const uint8_t nonce[32],uint8_t transaction[214])
 {(void)key;if(source==NULL||destination==NULL||units==0u||nonce==NULL||transaction==NULL)return 1;if(strncmp(destination,"stnw0_",6u)!=0||strlen(destination)!=70u)return 1;memset(transaction,0x5a,214u);return 0;}
 int stnc_core_submit_transaction(const uint8_t *transaction,size_t length,stnc_submission_result *result)
-{size_t i;if(submit_error||transaction==NULL||length!=214u||result==NULL)return 1;submit_calls++;memset(result,0,sizeof(*result));result->result=submit_result;result->has_transaction_id=1;for(i=0;i<32u;i++)result->transaction_id[i]=(uint8_t)i;return 0;}
+{size_t i;if(submit_error||transaction==NULL||length!=214u||result==NULL)return 1;submit_calls++;memset(result,0,sizeof(*result));result->result=submit_result;result->has_transaction_id=supply_transaction_id;for(i=0;i<32u;i++)result->transaction_id[i]=(uint8_t)i;return 0;}
 int stnc_core_balance(const char *wallet,uint64_t *units){(void)wallet;if(balance_error||units==NULL)return 1;*units=balance_value;return 0;}
 
 static int fail(int line){fprintf(stderr,"STNC transfer test failed at line %d.\n",line);return 1;}
@@ -42,9 +43,16 @@ int main(void)
     CHECK(stnc_transfer_send(destination,25u,&result)==0&&result.submission==STNC_STNC_SUBMISSION_DUPLICATE&&result.accepted_balance==100u);
     submit_result=STNC_STNC_SUBMISSION_REPLAY;balance_error=1;
     CHECK(stnc_transfer_send(destination,25u,&result)==0&&!result.balance_available);
+    CHECK(submit_calls==3u);
     CHECK(stnc_transfer_send(destination,0u,&result)!=0);
     CHECK(stnc_transfer_send("bad",1u,&result)!=0);
     wallet_available=0;CHECK(stnc_transfer_send(destination,1u,&result)!=0);
     wallet_available=1;submit_error=1;CHECK(stnc_transfer_send(destination,1u,&result)!=0);
+    CHECK(submit_calls==3u);
+    submit_error=0;submit_result=STNC_STNC_SUBMISSION_ADMITTED;supply_transaction_id=0;
+    CHECK(stnc_transfer_send(destination,25u,&result)==0);
+    CHECK(result.submission==STNC_STNC_SUBMISSION_ADMITTED);
+    CHECK(!result.has_transaction_id&&!result.balance_available);
+    CHECK(submit_calls==4u);
     puts("STNC transfer tests passed.");return 0;
 }
