@@ -18,6 +18,9 @@
 
 static int initialized;
 static uint64_t next_work_ms;
+static int applied_enabled;
+static stnc_mining_backend applied_backend;
+static unsigned int applied_cpu_limit;
 static stnc_stratum_client stratum;
 static uint8_t block[STNC_BACKGROUND_MINING_BLOCK_CAPACITY];
 static stnc_stratum_job active_job;
@@ -53,7 +56,26 @@ int stnc_background_mining_init(void)
     mining.enabled=config->mining_enabled;mining.backend=configured_backend(config->mining_backend);
     mining.cpu_limit_percent=config->mining_cpu_limit_percent;
     if(stnc_mining_service_configure(&mining)!=0)return 1;
+    applied_enabled=mining.enabled;applied_backend=mining.backend;applied_cpu_limit=mining.cpu_limit_percent;
     initialized=1;next_work_ms=0u;have_job=0;next_nonce=0u;memset(&active_job,0,sizeof(active_job));return 0;
+}
+
+static int apply_runtime_config(const stnc_config *config)
+{
+    stnc_mining_service_config mining;stnc_mining_backend backend;
+    if(config==NULL)return 1;
+    backend=configured_backend(config->mining_backend);
+    if(config->mining_enabled==applied_enabled&&backend==applied_backend&&
+       config->mining_cpu_limit_percent==applied_cpu_limit)return 0;
+    mining.enabled=config->mining_enabled;mining.backend=backend;
+    mining.cpu_limit_percent=config->mining_cpu_limit_percent;
+    if(stnc_mining_service_configure(&mining)!=0)return 1;
+    if(!mining.enabled||backend!=applied_backend){
+        stnc_stratum_client_disconnect(&stratum);have_job=0;next_nonce=0u;next_work_ms=0u;
+        memset(&active_job,0,sizeof(active_job));memset(block,0,sizeof(block));
+    }
+    applied_enabled=mining.enabled;applied_backend=backend;applied_cpu_limit=mining.cpu_limit_percent;
+    return 0;
 }
 
 void stnc_background_mining_tick(void)
@@ -64,6 +86,8 @@ void stnc_background_mining_tick(void)
     stnc_mining_result result;int poll_result;
 
     if(!initialized)return;
+    config=stnc_config_get();
+    if(apply_runtime_config(config)!=0)return;
     stnc_mining_service_status_read(&status);
     if(!status.enabled){stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;}
     if(status.configured_backend!=STNC_MINING_BACKEND_AUTOMATIC&&status.configured_backend!=STNC_MINING_BACKEND_CPU){
@@ -71,7 +95,7 @@ void stnc_background_mining_tick(void)
     }
 
     now=stnc_platform_monotonic_ms();
-    config=stnc_config_get();if(config==NULL||mining_identity(identity)!=0){
+    if(config==NULL||mining_identity(identity)!=0){
         stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
     }
 
@@ -142,6 +166,7 @@ void stnc_background_mining_shutdown(void)
     if(!initialized)return;
     stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
     stnc_mining_service_reset();initialized=0;next_work_ms=0u;have_job=0;next_nonce=0u;
+    applied_enabled=0;applied_backend=STNC_MINING_BACKEND_AUTOMATIC;applied_cpu_limit=0u;
     memset(&active_job,0,sizeof(active_job));memset(block,0,sizeof(block));
 }
 
