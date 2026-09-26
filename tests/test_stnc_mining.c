@@ -139,6 +139,14 @@ int main(void)
     if(stnc_mining_search_timed(block,0u,0u,&attempts,&nonce,digest)!=STNC_MINING_ERROR)return TEST_FAIL();
     if(stnc_mining_search_timed(NULL,0u,1u,&attempts,&nonce,digest)!=STNC_MINING_ERROR)return TEST_FAIL();
 
+    memset(block,0,sizeof(block));
+    block[STNC_STNC_MINING_NONCE_OFFSET]=0x12u;
+    block[STNC_STNC_MINING_NONCE_OFFSET+7u]=0x34u;
+    memset(target,0xff,sizeof(target));monotonic_value=0u;monotonic_step=1u;attempts=0u;nonce=0u;
+    if(stnc_mining_search_target_timed(block,target,9u,20u,&attempts,&nonce,digest)!=STNC_MINING_FOUND||
+       attempts!=1u||nonce!=9u||block[STNC_STNC_MINING_NONCE_OFFSET]!=0x12u||
+       block[STNC_STNC_MINING_NONCE_OFFSET+7u]!=0x34u)return TEST_FAIL();
+
     sha_calls=0u;
     if(stnc_mining_search(block,0u,0u,&nonce,digest)!=STNC_MINING_ERROR||sha_calls!=0u)return TEST_FAIL();
     if(stnc_mining_search(NULL,0u,1u,&nonce,digest)!=STNC_MINING_ERROR||sha_calls!=0u)return TEST_FAIL();
