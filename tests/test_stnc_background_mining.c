@@ -99,6 +99,7 @@ int main(void)
     stnc_background_mining_shutdown();
 
     wallet_ok=1;memcpy(config.mining_backend,"cpu",sizeof("cpu"));config.mining_enabled=1;
+    search_calls=0u;submit_calls=0u;
     search_found=1;submit_result=STNC_STRATUM_RESULT_ACCEPTED;job_ready=1;clock_ms=4000u;
     if(stnc_background_mining_init()!=0)return TEST_FAIL();
     stnc_background_mining_tick();
@@ -120,8 +121,8 @@ int main(void)
 
     wallet_ok=1;memcpy(config.mining_backend,"gpu",sizeof("gpu"));
     if(stnc_background_mining_init()!=0)return TEST_FAIL();
-    clock_ms=3000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
-    if(status.running||search_calls!=3u)return TEST_FAIL();
+    clock_ms=11000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(status.running||search_calls!=5u)return TEST_FAIL();
     stnc_background_mining_shutdown();
 
     puts("Background mining tests passed.");
