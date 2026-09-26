@@ -56,12 +56,19 @@ void stnc_mining_service_record_pass(uint64_t attempts,int solution)
 
 void stnc_mining_service_record_rate(uint64_t attempts,uint64_t elapsed_ms)
 {
+    uint64_t denominator;
     if(!service_status.running||elapsed_ms==0u){
         if(!service_status.running)service_status.hashrate_hps=0u;
         return;
     }
+
+    denominator=elapsed_ms;
+    if(service_status.active_backend==STNC_MINING_BACKEND_CPU)
+        denominator=STNC_MINING_CPU_WINDOW_MS;
+
+    if(denominator==0u)return;
     if(attempts>UINT64_MAX/UINT64_C(1000))service_status.hashrate_hps=UINT64_MAX;
-    else service_status.hashrate_hps=(attempts*UINT64_C(1000))/elapsed_ms;
+    else service_status.hashrate_hps=(attempts*UINT64_C(1000))/denominator;
 }
 
 void stnc_mining_service_status_read(stnc_mining_service_status *status)
