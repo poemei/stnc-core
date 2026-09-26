@@ -148,6 +148,14 @@ int main(void)
     if(search_calls!=2u||observed_budget_ms!=10u||observed_first_nonce!=32u)return TEST_FAIL();
     stnc_background_mining_shutdown();
 
+    config.mining_cpu_limit_percent=2u;job_ready=1;search_calls=0u;search_found=0;clock_ms=14500u;
+    if(stnc_background_mining_init()!=0)return TEST_FAIL();
+    stnc_background_mining_tick();
+    if(search_calls!=1u||observed_first_nonce!=7u)return TEST_FAIL();
+    job_ready=1;clock_ms=14600u;stnc_background_mining_tick();
+    if(search_calls!=2u||observed_first_nonce!=7u)return TEST_FAIL();
+    stnc_background_mining_shutdown();
+
     config.mining_cpu_limit_percent=2u;job_ready=1;search_calls=0u;search_error=1;clock_ms=15000u;
     if(stnc_background_mining_init()!=0)return TEST_FAIL();
     stnc_background_mining_tick();stnc_background_mining_status(&status);
