@@ -36,6 +36,8 @@ const char *stnc_contract_type_name(uint16_t value){(void)value;return "generic"
 const char *stnc_contract_state_name(uint16_t value){(void)value;return "review";}
 int stnc_contract_draft_save(const stnc_contract_draft_input *input,const char *path,char address[71])
 {(void)input;(void)path;(void)address;return 1;}
+int stnc_contract_create(const stnc_contract_draft_input *input,stnc_contract_create_result *result)
+{(void)input;if(result==NULL)return 1;memset(result,0,sizeof(*result));strcpy(result->address,"stnc0_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");result->submission=STNC_STNC_SUBMISSION_ADMITTED;result->has_transaction_id=1;memset(result->transaction_id,0x55,sizeof(result->transaction_id));return 0;}
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"Client boundary test failed: %d\n",__LINE__);return 1;}}while(0)
 int main(void)
 {
@@ -57,5 +59,8 @@ int main(void)
     request.operation=STNC_CLIENT_CONTRACT_LOOKUP;
     CHECK(stnc_client_execute(&request,result,sizeof(result))!=0);
     CHECK(stnc_client_execute(&request,result,sizeof(result))==0&&strstr(result,"Sequence: 7"));
+    memset(&request,0,sizeof(request));request.operation=STNC_CLIENT_CREATE_CONTRACT;
+    CHECK(stnc_client_execute(&request,result,sizeof(result))==0);
+    CHECK(strstr(result,"stnc0_")&&strstr(result,"Pending Chain acceptance."));
     puts("STNC client boundary tests passed.");return 0;
 }
