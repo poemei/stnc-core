@@ -6,6 +6,10 @@
 #include "stnc_log.h"
 #include "stnc_gui.h"
 
+/* Keep the desktop frontend in its own translation source while preserving
+ * the established command-line build list. */
+#include "../platforms/windows/gui_bitcoin.c"
+
 int main(int argc,char **argv)
 {
     int result;
