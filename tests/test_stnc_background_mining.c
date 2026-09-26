@@ -12,6 +12,7 @@ static stnc_config config;
 static uint64_t clock_ms;
 static int wallet_ok=1;
 static int job_ready=1;
+static unsigned int poll_calls;
 static unsigned int search_calls;
 static uint64_t search_attempts=25u;
 static unsigned int connect_calls;
@@ -41,6 +42,7 @@ void stnc_stratum_client_disconnect(stnc_stratum_client *client)
 int stnc_stratum_client_poll_job(stnc_stratum_client *client,stnc_stratum_job *job,uint8_t *block,size_t capacity)
 {
     if(client==NULL||!client->connected||job==NULL||block==NULL||capacity<168u)return -1;
+    poll_calls++;
     if(!job_ready)return 1;
     memset(job,0,sizeof(*job));memset(block,0,168u);job->block_length=168u;job->initial_nonce=7u;job->work_id[0]=9u;
     memset(job->share_target,0xabu,sizeof(job->share_target));job_ready=0;return 0;
@@ -77,8 +79,8 @@ int main(void)
     if(!status.enabled||!status.running||status.active_backend!=STNC_MINING_BACKEND_CPU||
        status.passes!=1u||status.attempts!=25u||search_calls!=1u||connect_calls!=1u||progress_calls!=1u||
        observed_target[0]!=0xabu||observed_target[31]!=0xabu)return 1;
-    clock_ms=500u;stnc_background_mining_tick();if(search_calls!=1u)return 1;
-    clock_ms=1000u;stnc_background_mining_tick();if(search_calls!=2u)return 1;
+    clock_ms=500u;stnc_background_mining_tick();if(search_calls!=1u||poll_calls!=2u)return 1;
+    clock_ms=1000u;stnc_background_mining_tick();if(search_calls!=2u||poll_calls!=3u)return 1;
     wallet_ok=0;clock_ms=2000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
     if(status.running)return 1;
     stnc_background_mining_shutdown();
