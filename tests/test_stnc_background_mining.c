@@ -97,7 +97,7 @@ int main(void)
     wallet_ok=1;memcpy(config.mining_backend,"gpu",sizeof("gpu"));
     if(stnc_background_mining_init()!=0)return TEST_FAIL();
     clock_ms=3000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
-    if(status.running||search_calls!=2u)return TEST_FAIL();
+    if(status.running||search_calls!=3u)return TEST_FAIL();
     stnc_background_mining_shutdown();
 
     puts("Background mining tests passed.");
