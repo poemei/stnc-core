@@ -23,6 +23,7 @@ int stnc_background_mining_connected(void){return 0;}
 const stnc_config *stnc_config_get(void){return &config;}
 int stnc_config_set_mining_enabled(int value){enabled=value;return 0;}
 int stnc_config_set_mining_cpu_limit(unsigned int value){return value<1||value>2;}
+int stnc_contract_list_read(const char *identity,stnc_contract_list *list){(void)identity;memset(list,0,sizeof(*list));return 0;}
 size_t stnc_log_recent_count(void){return 5;}
 int stnc_log_recent_get(size_t index,char *entry,size_t capacity){snprintf(entry,capacity,"event %zu",index);return 0;}
 void stnc_log_info(const char *text){(void)text;}
@@ -55,7 +56,7 @@ int main(void)
     CHECK(strstr(result,"not supplied")&&strstr(result,"Accepted balance: unavailable"));
     submission=STNC_STNC_SUBMISSION_UNAUTHORIZED;CHECK(stnc_client_execute(&request,result,sizeof(result))!=0&&strstr(result,"Rejected"));
     request.address[6]='A';CHECK(stnc_client_execute(&request,result,sizeof(result))!=0&&submitted==2);
-    CHECK(stnc_client_read(&snapshot)==0&&snapshot.activity_count==5&&!snapshot.wallet.balance_available);
+    CHECK(stnc_client_read(&snapshot)==0&&snapshot.activity_count==5&&!snapshot.wallet.balance_available&&!snapshot.contracts_available);
     request.operation=STNC_CLIENT_CONTRACT_LOOKUP;
     CHECK(stnc_client_execute(&request,result,sizeof(result))!=0);
     CHECK(stnc_client_execute(&request,result,sizeof(result))==0&&strstr(result,"Sequence: 7"));
