@@ -26,6 +26,7 @@ static stnc_stratum_result submit_result=STNC_STRATUM_RESULT_ACCEPTED;
 static uint64_t observed_first_nonce;
 static unsigned int observed_budget_ms;
 static uint8_t observed_target[32];
+static char observed_mining_address[STNC_WALLET_ADDRESS_SIZE+1u];
 
 const stnc_config *stnc_config_get(void){return &config;}
 uint64_t stnc_platform_monotonic_ms(void){return clock_ms;}
@@ -37,11 +38,9 @@ int stnc_wallet_store_load(stnc_wallet_key *key){if(!wallet_ok)return 1;memset(k
 int stnc_wallet_address(const stnc_wallet_key *key,char address[STNC_WALLET_ADDRESS_SIZE+1u])
 {size_t i;if(!wallet_ok||key==NULL||address==NULL)return 1;memcpy(address,"stnw0_",6u);for(i=6u;i<70u;i++)address[i]='a';address[70]='\0';return 0;}
 void stnc_wallet_clear(stnc_wallet_key *key){if(key!=NULL)memset(key,0,sizeof(*key));}
-int stnc_core_derive_address(uint16_t type,const uint8_t *source,size_t source_length,char *address,size_t capacity)
-{size_t i;(void)type;(void)source;(void)source_length;if(capacity<70u)return 1;memcpy(address,"stn0_",5u);for(i=5u;i<69u;i++)address[i]='a';address[69]='\0';return 0;}
 void stnc_stratum_client_init(stnc_stratum_client *client){memset(client,0,sizeof(*client));}
 int stnc_stratum_client_connect(stnc_stratum_client *client,const char *host,unsigned short port,const char *address)
-{if(client==NULL||host==NULL||strncmp(address,"stn0_",5u)!=0)return 1;if(!((strcmp(host,"stratum.stn-chain.org")==0&&port==18475u)||(strcmp(host,"stratum2.stn-chain.org")==0&&port==18476u)))return 1;client->handle=client;client->connected=1;connect_calls++;return 0;}
+{if(client==NULL||host==NULL||address==NULL||strncmp(address,"stnw0_",6u)!=0)return 1;if(!((strcmp(host,"stratum.stn-chain.org")==0&&port==18475u)||(strcmp(host,"stratum2.stn-chain.org")==0&&port==18476u)))return 1;memcpy(observed_mining_address,address,sizeof(observed_mining_address));observed_mining_address[sizeof(observed_mining_address)-1u]='\0';client->handle=client;client->connected=1;connect_calls++;return 0;}
 void stnc_stratum_client_disconnect(stnc_stratum_client *client){if(client!=NULL){client->handle=NULL;client->connected=0;}}
 int stnc_stratum_client_poll_job(stnc_stratum_client *client,stnc_stratum_job *job,uint8_t *block,size_t capacity)
 {if(client==NULL||!client->connected||job==NULL||block==NULL||capacity<168u)return -1;poll_calls++;if(!job_ready)return 1;memset(job,0,sizeof(*job));memset(block,0,168u);job->block_length=168u;job->initial_nonce=7u;job->work_id[0]=9u;memset(job->share_target,0xabu,sizeof(job->share_target));job_ready=0;return 0;}
@@ -66,10 +65,11 @@ int main(void)
     if(status.enabled||status.running||search_calls!=0u)return TEST_FAIL();
     stnc_background_mining_shutdown();
 
-    config.mining_enabled=1;clock_ms=0u;job_ready=1;
+    config.mining_enabled=1;clock_ms=0u;job_ready=1;memset(observed_mining_address,0,sizeof(observed_mining_address));
     if(stnc_background_mining_init()!=0)return TEST_FAIL();
     stnc_background_mining_tick();stnc_background_mining_status(&status);
     if(!status.enabled||!status.running||status.active_backend!=STNC_MINING_BACKEND_CPU||status.passes!=1u||status.attempts!=25u||search_calls!=1u||connect_calls!=1u||progress_calls!=1u||observed_target[0]!=0xabu||observed_target[31]!=0xabu)return TEST_FAIL();
+    if(strncmp(observed_mining_address,"stnw0_",6u)!=0||strlen(observed_mining_address)!=70u)return TEST_FAIL();
     clock_ms=500u;stnc_background_mining_tick();if(search_calls!=1u||poll_calls!=2u)return TEST_FAIL();
     clock_ms=1000u;stnc_background_mining_tick();if(search_calls!=2u||poll_calls!=3u)return TEST_FAIL();
     config.mining_enabled=0;clock_ms=1500u;stnc_background_mining_tick();stnc_background_mining_status(&status);if(status.enabled||status.running)return TEST_FAIL();
