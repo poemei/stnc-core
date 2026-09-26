@@ -19,6 +19,7 @@ int stnc_mining_service_configure(const stnc_mining_service_config *config)
     if(!config->enabled){
         service_status.running=0;
         service_status.active_backend=STNC_MINING_BACKEND_AUTOMATIC;
+        service_status.hashrate_hps=0u;
     }
     return 0;
 }
@@ -36,6 +37,7 @@ void stnc_mining_service_set_running(int running,stnc_mining_backend backend)
     if(!service_status.enabled||!running){
         service_status.running=0;
         service_status.active_backend=STNC_MINING_BACKEND_AUTOMATIC;
+        service_status.hashrate_hps=0u;
         return;
     }
     if(backend<STNC_MINING_BACKEND_CPU||backend>STNC_MINING_BACKEND_USB_ASIC)return;
@@ -50,6 +52,16 @@ void stnc_mining_service_record_pass(uint64_t attempts,int solution)
     if(UINT64_MAX-service_status.attempts<attempts)service_status.attempts=UINT64_MAX;
     else service_status.attempts+=attempts;
     if(solution&&service_status.solutions<UINT64_MAX)service_status.solutions++;
+}
+
+void stnc_mining_service_record_rate(uint64_t attempts,uint64_t elapsed_ms)
+{
+    if(!service_status.running||elapsed_ms==0u){
+        if(!service_status.running)service_status.hashrate_hps=0u;
+        return;
+    }
+    if(attempts>UINT64_MAX/UINT64_C(1000))service_status.hashrate_hps=UINT64_MAX;
+    else service_status.hashrate_hps=(attempts*UINT64_C(1000))/elapsed_ms;
 }
 
 void stnc_mining_service_status_read(stnc_mining_service_status *status)
