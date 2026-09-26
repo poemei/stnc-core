@@ -15,6 +15,8 @@
 
 #define STNC_BACKGROUND_MINING_RETRY_MS 1000u
 #define STNC_BACKGROUND_MINING_BLOCK_CAPACITY STNC_STNC_BLOCK_MAX_SIZE
+#define STNC_BACKGROUND_COMPENSATION_RECHECK_MS 30000u
+#define STNC_BACKGROUND_COMPENSATION_RETRY_MS 5000u
 
 static int initialized;
 static uint64_t next_work_ms;
@@ -29,6 +31,7 @@ static stnc_stratum_job active_job;
 static int have_job;
 static uint64_t next_nonce;
 static int compensation_ready;
+static uint64_t compensation_check_ms;
 
 static void clear_active_work(void)
 {
@@ -73,7 +76,7 @@ int stnc_background_mining_init(void)
     applied_enabled=mining.enabled;applied_backend=mining.backend;applied_cpu_limit=mining.cpu_limit_percent;
     memcpy(applied_stratum_host,config->stratum_host,sizeof(applied_stratum_host));
     applied_stratum_host[sizeof(applied_stratum_host)-1u]='\0';applied_stratum_port=config->stratum_port;
-    initialized=1;next_work_ms=0u;have_job=0;next_nonce=0u;compensation_ready=0;
+    initialized=1;next_work_ms=0u;have_job=0;next_nonce=0u;compensation_ready=0;compensation_check_ms=0u;
     memset(&active_job,0,sizeof(active_job));return 0;
 }
 
@@ -120,12 +123,25 @@ void stnc_background_mining_tick(void)
     }
 
     if(!compensation_ready){
+        if(compensation_check_ms!=0u&&now<compensation_check_ms){
+            clear_stratum_work();return;
+        }
         if(stnc_compensation_ensure()!=0){
+            compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RETRY_MS;
             stnc_log_error("Mining compensation destination is unavailable; background mining will not start.");
             clear_stratum_work();return;
         }
         compensation_ready=1;
+        compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RECHECK_MS;
         stnc_log_info("Mining compensation destination submitted to Chain.");
+    }else if(now>=compensation_check_ms){
+        if(stnc_compensation_ensure()!=0){
+            compensation_ready=0;
+            compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RETRY_MS;
+            stnc_log_error("Mining compensation destination recheck failed; background mining paused.");
+            clear_stratum_work();return;
+        }
+        compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RECHECK_MS;
     }
 
     if(!stratum.connected){
@@ -174,7 +190,9 @@ void stnc_background_mining_tick(void)
         else if(submit_result==STNC_STRATUM_RESULT_STALE){
             stnc_log_info("STN-Stratum reported stale work.");clear_active_work();return;
         }else if(submit_result==STNC_STRATUM_RESULT_PROVIDER){
-            stnc_log_info("STN-Stratum provider is temporarily unavailable.");clear_active_work();return;
+            stnc_log_info("STN-Stratum provider is temporarily unavailable.");
+            compensation_ready=0;compensation_check_ms=0u;
+            clear_active_work();return;
         }else{
             stnc_log_error("STN-Stratum rejected the submission protocol.");
             clear_stratum_work();return;
@@ -193,7 +211,7 @@ void stnc_background_mining_shutdown(void)
 {
     if(!initialized)return;
     clear_stratum_work();
-    stnc_mining_service_reset();initialized=0;next_work_ms=0u;have_job=0;next_nonce=0u;compensation_ready=0;
+    stnc_mining_service_reset();initialized=0;next_work_ms=0u;have_job=0;next_nonce=0u;compensation_ready=0;compensation_check_ms=0u;
     applied_enabled=0;applied_backend=STNC_MINING_BACKEND_AUTOMATIC;applied_cpu_limit=0u;
     memset(applied_stratum_host,0,sizeof(applied_stratum_host));applied_stratum_port=0u;
     memset(&active_job,0,sizeof(active_job));memset(block,0,sizeof(block));
