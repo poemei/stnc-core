@@ -81,6 +81,10 @@ int main(void)
        observed_target[0]!=0xabu||observed_target[31]!=0xabu)return 1;
     clock_ms=500u;stnc_background_mining_tick();if(search_calls!=1u||poll_calls!=2u)return 1;
     clock_ms=1000u;stnc_background_mining_tick();if(search_calls!=2u||poll_calls!=3u)return 1;
+    config.mining_enabled=0;clock_ms=1500u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(status.enabled||status.running)return 1;
+    config.mining_enabled=1;clock_ms=1600u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(!status.enabled||!status.running||connect_calls!=2u)return 1;
     wallet_ok=0;clock_ms=2000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
     if(status.running)return 1;
     stnc_background_mining_shutdown();
