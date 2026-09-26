@@ -3,8 +3,10 @@
 #include <time.h>
 
 #include "stnc_log.h"
+#include "stnc_platform.h"
 
-#define STNC_LOG_PATH "stnc-core.log"
+#define STNC_LOG_FILENAME "stnc-core.log"
+#define STNC_LOG_PATH_MAX 1024u
 
 static int log_initialized = 0;
 static FILE *log_file = NULL;
@@ -46,8 +48,13 @@ static void stnc_log_write(const char *level,const char *message)
 
 int stnc_log_init(void)
 {
+    char directory[STNC_LOG_PATH_MAX];char path[STNC_LOG_PATH_MAX];int written;
     if(log_initialized)return 1;
-    log_file=fopen(STNC_LOG_PATH,"a");
+    memset(directory,0,sizeof(directory));memset(path,0,sizeof(path));
+    if(stnc_platform_get_app_directory(directory,sizeof(directory))!=0)return 1;
+    written=snprintf(path,sizeof(path),"%s%c%s",directory,stnc_platform_path_separator(),STNC_LOG_FILENAME);
+    if(written<0||(size_t)written>=sizeof(path))return 1;
+    log_file=fopen(path,"a");
     if(log_file==NULL)return 1;
     memset(recent_entries,0,sizeof(recent_entries));recent_count=0u;recent_next=0u;
     log_initialized=1;
