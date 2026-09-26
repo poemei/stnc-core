@@ -115,7 +115,7 @@ void stnc_background_mining_tick(void)
 
     now=stnc_platform_monotonic_ms();
     if(config==NULL||mining_identity(identity)!=0){
-        stnc_stratum_client_disconnect(&stratum);stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
+        clear_stratum_work();return;
     }
 
     if(!stratum.connected){
@@ -130,8 +130,7 @@ void stnc_background_mining_tick(void)
     memset(&job,0,sizeof(job));
     poll_result=stnc_stratum_client_poll_job(&stratum,&job,block,sizeof(block));
     if(poll_result<0){
-        clear_stratum_work();
-        stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
+        clear_stratum_work();return;
     }
     if(poll_result==0){
         active_job=job;next_nonce=job.initial_nonce;have_job=1;next_work_ms=now;
@@ -153,8 +152,7 @@ void stnc_background_mining_tick(void)
     if(result==STNC_MINING_FOUND){
         stnc_log_info("Background mining found qualifying share; submitting through STN-Stratum.");
         if(stnc_stratum_client_submit(&stratum,active_job.work_id,found_nonce,&submit_result)!=0){
-            clear_stratum_work();
-            stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
+            clear_stratum_work();return;
         }
         if(submit_result==STNC_STRATUM_RESULT_ACCEPTED)
             stnc_log_info("STN-Stratum accepted qualifying share.");
@@ -166,8 +164,7 @@ void stnc_background_mining_tick(void)
             stnc_log_info("STN-Stratum provider is temporarily unavailable.");clear_active_work();return;
         }else{
             stnc_log_error("STN-Stratum rejected the submission protocol.");
-            clear_stratum_work();
-            stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
+            clear_stratum_work();return;
         }
         if(found_nonce==UINT64_MAX)clear_active_work();
         else next_nonce=found_nonce+1u;
@@ -176,7 +173,6 @@ void stnc_background_mining_tick(void)
         else next_nonce+=attempts;
     }else{
         clear_stratum_work();
-        stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
     }
 }
 
