@@ -114,12 +114,12 @@ int main(void)
     if(submit_calls!=2u||observed_first_nonce!=32u)return TEST_FAIL();
     submit_result=STNC_STRATUM_RESULT_REJECTED;clock_ms=6000u;stnc_background_mining_tick();
     if(submit_calls!=3u||observed_first_nonce!=57u)return TEST_FAIL();
-    submit_result=STNC_STRATUM_RESULT_STALE;clock_ms=7000u;stnc_background_mining_tick();
-    if(submit_calls!=4u||observed_first_nonce!=82u)return TEST_FAIL();
+    submit_result=STNC_STRATUM_RESULT_STALE;clock_ms=7000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(submit_calls!=4u||observed_first_nonce!=82u||status.running)return TEST_FAIL();
     clock_ms=8000u;stnc_background_mining_tick();
     if(submit_calls!=4u)return TEST_FAIL();
-    job_ready=1;submit_result=STNC_STRATUM_RESULT_PROVIDER;clock_ms=9000u;stnc_background_mining_tick();
-    if(submit_calls!=5u||observed_first_nonce!=7u)return TEST_FAIL();
+    job_ready=1;submit_result=STNC_STRATUM_RESULT_PROVIDER;clock_ms=9000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(submit_calls!=5u||observed_first_nonce!=7u||status.running)return TEST_FAIL();
     clock_ms=10000u;stnc_background_mining_tick();
     if(submit_calls!=5u)return TEST_FAIL();
     stnc_background_mining_shutdown();
