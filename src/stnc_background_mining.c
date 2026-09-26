@@ -29,11 +29,16 @@ static stnc_stratum_job active_job;
 static int have_job;
 static uint64_t next_nonce;
 
-static void clear_stratum_work(void)
+static void clear_active_work(void)
 {
-    stnc_stratum_client_disconnect(&stratum);have_job=0;next_nonce=0u;next_work_ms=0u;
+    have_job=0;next_nonce=0u;next_work_ms=0u;
     memset(&active_job,0,sizeof(active_job));memset(block,0,sizeof(block));
     stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);
+}
+
+static void clear_stratum_work(void)
+{
+    stnc_stratum_client_disconnect(&stratum);clear_active_work();
 }
 
 static stnc_mining_backend configured_backend(const char *name)
@@ -156,18 +161,18 @@ void stnc_background_mining_tick(void)
         else if(submit_result==STNC_STRATUM_RESULT_REJECTED)
             stnc_log_info("STN-Stratum reported Chain rejection for qualifying share.");
         else if(submit_result==STNC_STRATUM_RESULT_STALE){
-            stnc_log_info("STN-Stratum reported stale work.");have_job=0;return;
+            stnc_log_info("STN-Stratum reported stale work.");clear_active_work();return;
         }else if(submit_result==STNC_STRATUM_RESULT_PROVIDER){
-            stnc_log_info("STN-Stratum provider is temporarily unavailable.");have_job=0;return;
+            stnc_log_info("STN-Stratum provider is temporarily unavailable.");clear_active_work();return;
         }else{
             stnc_log_error("STN-Stratum rejected the submission protocol.");
             clear_stratum_work();
             stnc_mining_service_set_running(0,STNC_MINING_BACKEND_AUTOMATIC);return;
         }
-        if(found_nonce==UINT64_MAX)have_job=0;
+        if(found_nonce==UINT64_MAX)clear_active_work();
         else next_nonce=found_nonce+1u;
     }else if(result==STNC_MINING_EXHAUSTED){
-        if(attempts>UINT64_MAX-next_nonce)have_job=0;
+        if(attempts>UINT64_MAX-next_nonce)clear_active_work();
         else next_nonce+=attempts;
     }else{
         clear_stratum_work();
