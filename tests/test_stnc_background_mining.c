@@ -96,12 +96,15 @@ int main(void)
     CHECK(stnc_background_mining_init()==0);
     stnc_background_mining_tick();stnc_background_mining_status(&status);
     CHECK(!status.running&&compensation_calls==1u&&connect_calls==0u&&search_calls==0u);
+    clock_ms=1000u;
+    stnc_background_mining_tick();
+    CHECK(compensation_calls==2u&&connect_calls==0u);
     stnc_background_mining_shutdown();
 
     compensation_ok=1;job_ready=1;clock_ms=1000u;
     CHECK(stnc_background_mining_init()==0);
     stnc_background_mining_tick();stnc_background_mining_status(&status);
-    CHECK(compensation_calls==2u&&connect_calls==1u&&poll_calls==1u&&search_calls==1u&&progress_calls==1u);
+    CHECK(compensation_calls==3u&&connect_calls==1u&&poll_calls==1u&&search_calls==1u&&progress_calls==1u);
     CHECK(status.running&&status.active_backend==STNC_MINING_BACKEND_CPU);
     CHECK(status.hashrate_hps==25u);
     CHECK(strlen(observed_address)==69u&&strncmp(observed_address,"stn0_",5u)==0);
@@ -109,13 +112,25 @@ int main(void)
     memcpy(config.stratum_host,"stratum2.stn-chain.org",sizeof("stratum2.stn-chain.org"));
     config.stratum_port=18476u;job_ready=1;clock_ms=2000u;
     stnc_background_mining_tick();stnc_background_mining_status(&status);
-    CHECK(compensation_calls==2u&&connect_calls==2u&&status.running);
+    CHECK(compensation_calls==3u&&connect_calls==2u&&status.running);
     CHECK(strlen(observed_address)==69u&&strncmp(observed_address,"stn0_",5u)==0);
 
-    config.mining_enabled=0;clock_ms=3000u;stnc_background_mining_tick();
+    clock_ms=32000u;job_ready=0;
+    stnc_background_mining_tick();
+    CHECK(compensation_calls==4u);
+
+    compensation_ok=0;clock_ms=62000u;
+    stnc_background_mining_tick();stnc_background_mining_status(&status);
+    CHECK(compensation_calls==5u&&!status.running);
+
+    compensation_ok=1;job_ready=1;clock_ms=67000u;
+    stnc_background_mining_tick();stnc_background_mining_status(&status);
+    CHECK(compensation_calls==6u&&connect_calls==3u&&status.running);
+
+    config.mining_enabled=0;clock_ms=68000u;stnc_background_mining_tick();
     stnc_background_mining_status(&status);CHECK(!status.enabled&&!status.running);
     stnc_background_mining_shutdown();
 
-    puts("Background mining compensation tests passed.");
+    puts("Background mining compensation recheck tests passed.");
     return 0;
 }
