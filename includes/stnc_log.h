@@ -21,6 +21,8 @@ void stnc_log_error(const char *message);
 
 size_t stnc_log_recent_count(void);
 int stnc_log_recent_get(size_t index,char *entry,size_t capacity);
+void stnc_log_console_enable(int enabled);
+void stnc_log_console_refresh(void);
 
 void stnc_log_shutdown(void);
 
