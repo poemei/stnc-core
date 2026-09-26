@@ -38,7 +38,9 @@ int stnc_core_derive_address(uint16_t type,const uint8_t *source,size_t source_l
 void stnc_stratum_client_init(stnc_stratum_client *client){memset(client,0,sizeof(*client));}
 int stnc_stratum_client_connect(stnc_stratum_client *client,const char *host,unsigned short port,const char *address)
 {
-    if(client==NULL||strcmp(host,"stratum.stn-chain.org")!=0||port!=18475u||strncmp(address,"stn0_",5u)!=0)return 1;
+    if(client==NULL||host==NULL||strncmp(address,"stn0_",5u)!=0)return 1;
+    if(!((strcmp(host,"stratum.stn-chain.org")==0&&port==18475u)||
+         (strcmp(host,"stratum2.stn-chain.org")==0&&port==18476u)))return 1;
     client->handle=client;client->connected=1;connect_calls++;return 0;
 }
 void stnc_stratum_client_disconnect(stnc_stratum_client *client)
@@ -118,6 +120,19 @@ int main(void)
     if(submit_calls!=5u)return TEST_FAIL();
     stnc_background_mining_shutdown();
     search_found=0;
+
+    memcpy(config.mining_backend,"cpu",sizeof("cpu"));config.mining_enabled=1;
+    memcpy(config.stratum_host,"stratum.stn-chain.org",sizeof("stratum.stn-chain.org"));config.stratum_port=18475u;
+    job_ready=1;clock_ms=11000u;
+    if(stnc_background_mining_init()!=0)return TEST_FAIL();
+    stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(!status.running)return TEST_FAIL();
+    memcpy(config.stratum_host,"stratum2.stn-chain.org",sizeof("stratum2.stn-chain.org"));config.stratum_port=18476u;
+    job_ready=0;clock_ms=11500u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(status.running||connect_calls<2u)return TEST_FAIL();
+    job_ready=1;clock_ms=12000u;stnc_background_mining_tick();stnc_background_mining_status(&status);
+    if(!status.running)return TEST_FAIL();
+    stnc_background_mining_shutdown();
 
     wallet_ok=1;memcpy(config.mining_backend,"gpu",sizeof("gpu"));
     if(stnc_background_mining_init()!=0)return TEST_FAIL();
