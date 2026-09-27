@@ -122,13 +122,16 @@ int main(void)
     stnc_background_mining_tick();
     CHECK(compensation_calls==4u);
 
+    /* A transient periodic compensation re-registration failure must not
+     * disconnect Stratum, clear current work, or collapse the reported rate. */
     compensation_ok=0;clock_ms=62000u;
     stnc_background_mining_tick();stnc_background_mining_status(&status);
-    CHECK(compensation_calls==5u&&!status.running);
+    CHECK(compensation_calls==5u&&connect_calls==2u&&status.running);
+    CHECK(status.hashrate_hps==25u&&search_calls==4u);
 
     compensation_ok=1;job_ready=1;clock_ms=67000u;
     stnc_background_mining_tick();stnc_background_mining_status(&status);
-    CHECK(compensation_calls==6u&&connect_calls==3u&&status.running);
+    CHECK(compensation_calls==6u&&connect_calls==2u&&status.running&&search_calls==5u);
 
     /* Compensation maintenance is a Core lifecycle responsibility. Turning off
      * Core CPU mining must stop hashing/Stratum without stopping periodic
@@ -137,7 +140,7 @@ int main(void)
     stnc_background_mining_status(&status);
     CHECK(!status.enabled&&!status.running&&compensation_calls==6u);
     clock_ms=97000u;stnc_background_mining_tick();
-    CHECK(compensation_calls==7u&&connect_calls==3u&&search_calls==4u);
+    CHECK(compensation_calls==7u&&connect_calls==2u&&search_calls==5u);
 
     stnc_background_mining_shutdown();
 
