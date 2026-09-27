@@ -112,23 +112,24 @@ void stnc_background_mining_tick(void)
     config=stnc_config_get();
     if(apply_runtime_config(config)!=0)return;
     stnc_mining_service_status_read(&status);
-    if(!status.enabled){clear_stratum_work();return;}
-    if(status.configured_backend!=STNC_MINING_BACKEND_AUTOMATIC&&status.configured_backend!=STNC_MINING_BACKEND_CPU){
-        clear_stratum_work();return;
-    }
 
     now=stnc_platform_monotonic_ms();
     if(config==NULL||mining_identity(identity)!=0){
+        compensation_ready=0;compensation_check_ms=0u;
         clear_stratum_work();return;
     }
 
+    /* Compensation routing belongs to the connected Core lifecycle, not to a
+     * particular mining device. Maintain the canonical stn0_ -> stnw0_
+     * registration even when Core background CPU mining is disabled or when an
+     * external GPU/ASIC miner is doing the actual work. */
     if(!compensation_ready){
         if(compensation_check_ms!=0u&&now<compensation_check_ms){
             clear_stratum_work();return;
         }
         if(stnc_compensation_ensure()!=0){
             compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RETRY_MS;
-            stnc_log_error("Mining compensation destination is unavailable; background mining will not start.");
+            stnc_log_error("Mining compensation destination is unavailable; registration will retry.");
             clear_stratum_work();return;
         }
         compensation_ready=1;
@@ -138,10 +139,15 @@ void stnc_background_mining_tick(void)
         if(stnc_compensation_ensure()!=0){
             compensation_ready=0;
             compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RETRY_MS;
-            stnc_log_error("Mining compensation destination recheck failed; background mining paused.");
+            stnc_log_error("Mining compensation destination recheck failed; registration will retry.");
             clear_stratum_work();return;
         }
         compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RECHECK_MS;
+    }
+
+    if(!status.enabled){clear_stratum_work();return;}
+    if(status.configured_backend!=STNC_MINING_BACKEND_AUTOMATIC&&status.configured_backend!=STNC_MINING_BACKEND_CPU){
+        clear_stratum_work();return;
     }
 
     if(!stratum.connected){
