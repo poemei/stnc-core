@@ -130,10 +130,17 @@ int main(void)
     stnc_background_mining_tick();stnc_background_mining_status(&status);
     CHECK(compensation_calls==6u&&connect_calls==3u&&status.running);
 
+    /* Compensation maintenance is a Core lifecycle responsibility. Turning off
+     * Core CPU mining must stop hashing/Stratum without stopping periodic
+     * registration maintenance for an external GPU/ASIC miner. */
     config.mining_enabled=0;clock_ms=68000u;stnc_background_mining_tick();
-    stnc_background_mining_status(&status);CHECK(!status.enabled&&!status.running);
+    stnc_background_mining_status(&status);
+    CHECK(!status.enabled&&!status.running&&compensation_calls==6u);
+    clock_ms=97000u;stnc_background_mining_tick();
+    CHECK(compensation_calls==7u&&connect_calls==3u&&search_calls==4u);
+
     stnc_background_mining_shutdown();
 
-    puts("Background mining compensation recheck tests passed.");
+    puts("Background mining compensation lifecycle tests passed.");
     return 0;
 }
