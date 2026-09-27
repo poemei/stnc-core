@@ -137,12 +137,15 @@ void stnc_background_mining_tick(void)
         stnc_log_info("Mining compensation destination submitted to Chain.");
     }else if(now>=compensation_check_ms){
         if(stnc_compensation_ensure()!=0){
-            compensation_ready=0;
+            /* A periodic re-registration failure does not prove that an already
+             * accepted compensation mapping disappeared. Keep healthy mining
+             * work alive and retry maintenance without converting a transient
+             * Chain admission outage into a mining outage. */
             compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RETRY_MS;
-            stnc_log_error("Mining compensation destination recheck failed; registration will retry.");
-            clear_stratum_work();return;
+            stnc_log_error("Mining compensation destination recheck failed; registration will retry without stopping mining.");
+        }else{
+            compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RECHECK_MS;
         }
-        compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RECHECK_MS;
     }
 
     if(!status.enabled){clear_stratum_work();return;}
@@ -196,9 +199,7 @@ void stnc_background_mining_tick(void)
         else if(submit_result==STNC_STRATUM_RESULT_STALE){
             stnc_log_info("STN-Stratum reported stale work.");clear_active_work();return;
         }else if(submit_result==STNC_STRATUM_RESULT_PROVIDER){
-            stnc_log_info("STN-Stratum provider is temporarily unavailable.");
-            compensation_ready=0;compensation_check_ms=0u;
-            clear_active_work();return;
+            stnc_log_info("STN-Stratum provider is temporarily unavailable; current work remains valid.");
         }else{
             stnc_log_error("STN-Stratum rejected the submission protocol.");
             clear_stratum_work();return;
