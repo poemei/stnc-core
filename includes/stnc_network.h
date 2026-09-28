@@ -2,10 +2,14 @@
 #define STNC_NETWORK_H
 
 #include <stddef.h>
+#include "stnc_mutex.h"
 
 typedef struct stnc_network_connection {
     void *handle;
     int connected;
+    stnc_mutex rpc_mutex;
+    int rpc_active;
+    size_t rpc_payload_remaining;
 } stnc_network_connection;
 
 int stnc_network_init(void);
