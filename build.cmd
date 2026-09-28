@@ -12,7 +12,7 @@ if errorlevel 1 ( for /f "usebackq tokens=*" %%I in (`"%ProgramFiles(x86)%\Micro
 where cl >nul 2>&1
 if errorlevel 1 ( echo MSVC C Build Tools and a Windows SDK are required. & exit /b 1 )
 
-cl /nologo /W4 /TC /Iincludes src\main.c src\stnc_command.c src\stnc_client.c src\stnc_identity.c src\stnc_compensation.c src\stnc_contract_draft.c src\stnc_contract_action.c src\stnc_contract_create.c src\stnc_contract_list.c src\stnc_contract_list_network.c platforms\windows\gui_windows.c src\stnc_background_mining.c src\stnc_contract_status.c src\stnc_core.c src\stnc_log.c src\stnc_mining.c src\stnc_mining_service.c src\stnc_stratum.c src\stnc_stratum_client.c src\stnc_config.c src\stnc_directory.c src\stnc_http.c src\stnc_network.c src\stnc_peers.c src\stnc_peer_select.c src\stnc_stnc.c src\stnc_stnp.c src\stnc_transfer.c src\stnc_wallet.c src\stnc_wallet_store.c src\stnc_wallet_status.c platforms\windows\platform_windows.c src\crypto\ed25519_donna\ed25519_provider.c /Fe:build\stnc-core.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib
+cl /nologo /W4 /TC /Iincludes src\main.c src\stnc_command.c src\stnc_client.c src\stnc_identity.c src\stnc_compensation.c src\stnc_contract_draft.c src\stnc_contract_action.c src\stnc_contract_create.c src\stnc_contract_list.c src\stnc_contract_list_network.c platforms\windows\gui_windows.c src\stnc_background_mining.c src\stnc_contract_status.c src\stnc_transaction_status.c src\stnc_core.c src\stnc_log.c src\stnc_mining.c src\stnc_mining_service.c src\stnc_stratum.c src\stnc_stratum_client.c src\stnc_config.c src\stnc_directory.c src\stnc_http.c src\stnc_network.c src\stnc_peers.c src\stnc_peer_select.c src\stnc_stnc.c src\stnc_stnp.c src\stnc_transfer.c src\stnc_wallet.c src\stnc_wallet_store.c src\stnc_wallet_status.c platforms\windows\platform_windows.c src\crypto\ed25519_donna\ed25519_provider.c /Fe:build\stnc-core.exe /link ws2_32.lib winhttp.lib bcrypt.lib advapi32.lib user32.lib gdi32.lib comdlg32.lib comctl32.lib
 if errorlevel 1 ( echo. & echo BUILD FAILED & exit /b 1 )
 
 cl /nologo /W4 /TC /D_CRT_SECURE_NO_WARNINGS /Iincludes tests\test_stnc_log.c src\stnc_log.c /Fe:build\test-stnc-log.exe && build\test-stnc-log.exe || exit /b 1
@@ -39,6 +39,7 @@ cl /nologo /W4 /TC /Iincludes tests\test_stnc_contract_draft.c src\stnc_contract
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_contract_action.c src\stnc_contract_action.c /Fe:build\test-stnc-contract-action.exe && build\test-stnc-contract-action.exe || exit /b 1
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_contract_create.c src\stnc_contract_create.c /Fe:build\test-stnc-contract-create.exe && build\test-stnc-contract-create.exe || exit /b 1
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_client.c src\stnc_client.c /Fe:build\test-stnc-client.exe && build\test-stnc-client.exe || exit /b 1
+cl /nologo /W4 /TC /Iincludes tests\test_stnc_transaction_status.c /Fe:build\test-stnc-transaction-status.exe && build\test-stnc-transaction-status.exe || exit /b 1
 cl /nologo /W4 /TC tests\test_stnc_gui.c /Fe:build\test-stnc-gui.exe /link user32.lib gdi32.lib && build\test-stnc-gui.exe || exit /b 1
 echo. & echo BUILD SUCCESSFUL & echo build\stnc-core.exe
 endlocal
