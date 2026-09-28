@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "stnc_core.h"
+#include "stnc_log.h"
 #include "stnc_platform.h"
 #include "stnc_wallet_store.h"
 
@@ -31,16 +32,34 @@ int stnc_transfer_send(const char *destination,uint64_t units,stnc_transfer_resu
     uint8_t transaction[STNC_WALLET_TRANSFER_SIZE];
     int rc=1;
 
-    if(destination==NULL||result==NULL||units==0u)return 1;
+    if(destination==NULL||result==NULL||units==0u){
+        stnc_log_error("Transfer rejected before construction: destination, result, or amount is invalid.");
+        return 1;
+    }
     memset(&out,0,sizeof(out));memset(&key,0,sizeof(key));
     memset(&submission,0,sizeof(submission));memset(nonce,0,sizeof(nonce));
     memset(transaction,0,sizeof(transaction));
 
-    if(stnc_wallet_store_load(&key)!=0)return 1;
-    if(stnc_wallet_address(&key,out.source)!=0)goto cleanup;
-    if(stnc_platform_random(nonce,sizeof(nonce))!=0)goto cleanup;
-    if(stnc_wallet_build_transfer(&key,out.source,destination,units,nonce,transaction)!=0)goto cleanup;
-    if(stnc_core_submit_transaction(transaction,sizeof(transaction),&submission)!=0)goto cleanup;
+    if(stnc_wallet_store_load(&key)!=0){
+        stnc_log_error("Transfer failed before submission: stored wallet key is unavailable.");
+        return 1;
+    }
+    if(stnc_wallet_address(&key,out.source)!=0){
+        stnc_log_error("Transfer failed before submission: source wallet address derivation failed.");
+        goto cleanup;
+    }
+    if(stnc_platform_random(nonce,sizeof(nonce))!=0){
+        stnc_log_error("Transfer failed before submission: secure nonce generation failed.");
+        goto cleanup;
+    }
+    if(stnc_wallet_build_transfer(&key,out.source,destination,units,nonce,transaction)!=0){
+        stnc_log_error("Transfer failed before submission: canonical signed transaction construction failed.");
+        goto cleanup;
+    }
+    if(stnc_core_submit_transaction(transaction,sizeof(transaction),&submission)!=0){
+        stnc_log_error("Transfer submission transport failed; Chain admission outcome is unknown and the RPC session will reconnect.");
+        goto cleanup;
+    }
 
     out.submission=submission.result;
     out.has_transaction_id=submission.has_transaction_id;
