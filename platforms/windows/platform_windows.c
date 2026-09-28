@@ -249,6 +249,17 @@ int stnc_platform_network_connect(
     return 0;
 }
 
+int stnc_platform_network_timeout(void *handle,unsigned int milliseconds)
+{
+    SOCKET socket_handle=(SOCKET)(uintptr_t)handle;
+    DWORD timeout=(DWORD)milliseconds;
+    if(!network_initialized || handle==NULL || milliseconds==0u)return 1;
+    return setsockopt(socket_handle,SOL_SOCKET,SO_SNDTIMEO,
+               (const char *)&timeout,sizeof(timeout))==SOCKET_ERROR ||
+           setsockopt(socket_handle,SOL_SOCKET,SO_RCVTIMEO,
+               (const char *)&timeout,sizeof(timeout))==SOCKET_ERROR;
+}
+
 int stnc_platform_network_send(
     void *handle,
     const unsigned char *buffer,

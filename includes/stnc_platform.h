@@ -30,6 +30,9 @@ int stnc_platform_network_send(
     size_t length
 );
 
+/* Override socket I/O waits for an established RPC connection. */
+int stnc_platform_network_timeout(void *handle,unsigned int milliseconds);
+
 int stnc_platform_network_receive(
     void *handle,
     unsigned char *buffer,

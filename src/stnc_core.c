@@ -459,9 +459,7 @@ static int stnc_core_connect_configured_peer(int log_qualification)
         return 1;
     }
 
-    if (stnc_network_is_connected(&chain_connection)) {
-        stnc_network_disconnect(&chain_connection);
-    }
+    stnc_network_disconnect(&chain_connection);
 
     if (stnc_network_connect(&chain_connection, config->peer, config->port) != 0) {
         return 1;
@@ -1373,26 +1371,40 @@ int stnc_core_derive_address(
 }
 
 
-static int stnc_core_address_query(uint16_t method, const char *address, uint64_t request_id,
-    uint8_t *payload, size_t payload_capacity, size_t expected_length)
+static int stnc_core_address_query(uint16_t method,const char *address,uint64_t request_id,
+    uint8_t *payload,size_t payload_capacity,size_t expected_length)
 {
-    uint8_t request[STNC_STNC_HEADER_SIZE + STNC_STNC_ADDRESS_TYPED_SIZE];
-    uint8_t response_header[STNC_STNC_HEADER_SIZE];
-    stnc_stnc_message response;
-    size_t written;
-    if (core_state == STNC_CORE_STATE_UNINITIALIZED || core_state == STNC_CORE_STATE_STOPPED ||
-        !stnc_network_is_connected(&chain_connection) || address == NULL || payload == NULL ||
-        payload_capacity < expected_length) return 1;
-    if (stnc_stnc_encode_address_query(method,address,request_id,request,sizeof(request),&written) != 0 ||
-        stnc_network_send(&chain_connection,request,written) != 0 ||
-        stnc_network_receive(&chain_connection,response_header,sizeof(response_header)) != 0 ||
-        stnc_stnc_decode_header(response_header,sizeof(response_header),&response) != 0 ||
-        response.method != method || response.request_id != request_id || response.code != STNC_STNC_OK ||
-        response.length != expected_length ||
-        stnc_network_receive(&chain_connection,payload,expected_length) != 0) return 1;
+    uint8_t request[STNC_STNC_HEADER_SIZE+STNC_STNC_ADDRESS_TYPED_SIZE];
+    uint8_t header[STNC_STNC_HEADER_SIZE];stnc_stnc_message response;
+    size_t written;char message[160];
+    if(core_state==STNC_CORE_STATE_UNINITIALIZED || core_state==STNC_CORE_STATE_STOPPED ||
+       !stnc_network_is_connected(&chain_connection) || address==NULL || payload==NULL ||
+       payload_capacity<expected_length)return 1;
+    if(stnc_stnc_encode_address_query(method,address,request_id,request,sizeof(request),&written)!=0)return 1;
+    if(stnc_network_send(&chain_connection,request,written)!=0 ||
+       stnc_network_receive(&chain_connection,header,sizeof(header))!=0){
+        snprintf(message,sizeof(message),"STNC method %u transport failed; reconnect required.",(unsigned)method);
+        stnc_log_error(message);goto failed;
+    }
+    if(stnc_stnc_decode_header(header,sizeof(header),&response)!=0 ||
+       response.kind!=STNC_STNC_RESPONSE || response.method!=method || response.request_id!=request_id)
+        goto failed;
+    if(response.code!=STNC_STNC_OK){
+        snprintf(message,sizeof(message),"STNC method %u returned code %u.",(unsigned)method,(unsigned)response.code);
+        stnc_log_info(message);
+        /* Empty application errors (including contract NOT_FOUND) leave the
+         * transport usable. Never leave an unread payload on the RPC stream. */
+        if(response.length==0u)return 1;
+        goto failed;
+    }
+    if(response.length!=expected_length ||
+       stnc_network_receive(&chain_connection,payload,expected_length)!=0)goto failed;
     return 0;
+failed:
+    stnc_network_disconnect(&chain_connection);
+    stnc_core_clear_chain_state();
+    return 1;
 }
-
 int stnc_core_balance(const char *wallet, uint64_t *units)
 {
     uint8_t payload[STNC_STNC_BALANCE_SIZE];

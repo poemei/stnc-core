@@ -4,6 +4,7 @@
 #include "stnc_platform.h"
 
 static int send_error,receive_error,disconnects;
+int stnc_platform_network_timeout(void *handle,unsigned int ms){(void)handle;(void)ms;return 0;}
 int stnc_platform_network_init(void){return 0;}
 void stnc_platform_network_shutdown(void){}
 int stnc_platform_network_connect(void **handle,const char *peer,unsigned short port)

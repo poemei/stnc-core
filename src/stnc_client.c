@@ -2,12 +2,20 @@
 #include "stnc_transfer.h"
 #include "stnc_transaction_status.h"
 #include "stnc_wallet_store.h"
+#include "stnc_platform.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
 static uint8_t tracked_transaction_id[32];
 static int tracked_transaction;
+/* One worker owns these display snapshots; never use them to authorize a spend. */
+static stnc_wallet_status display_wallet;
+static stnc_contract_list display_contracts;
+static int display_contracts_available,display_valid,display_connected;
+static uint64_t display_checked_ms;
+static char display_identity[70],display_peer[STNC_CONFIG_PEER_MAX];
+static unsigned short display_port;
 
 static void track_transaction(const uint8_t id[32])
 {
@@ -45,11 +53,53 @@ int stnc_client_wallet_address_valid(const char *address)
 int stnc_client_set_mining(int enabled)
 {stnc_wallet_key key;int valid;if(enabled!=0&&enabled!=1)return 1;if(enabled){memset(&key,0,sizeof(key));valid=stnc_wallet_store_load(&key)==0;stnc_wallet_clear(&key);if(!valid)return 1;}return stnc_config_set_mining_enabled(enabled);}
 int stnc_client_read(stnc_client_snapshot *snapshot)
-{const stnc_config *config;size_t i;if(snapshot==NULL)return 1;check_tracked_transaction();memset(snapshot,0,sizeof(*snapshot));if(stnc_wallet_status_read(&snapshot->wallet)!=0||stnc_identity_status_read(&snapshot->identity)!=0)return 1;stnc_core_get_runtime_status(&snapshot->network);snapshot->chain=*stnc_core_get_chain_state();snapshot->peer=*stnc_core_get_peer_status();stnc_background_mining_status(&snapshot->mining);snapshot->stratum_connected=stnc_background_mining_connected();config=stnc_config_get();if(config!=NULL)snapshot->config=*config;if(snapshot->identity.valid&&snapshot->network.chain_connected&&stnc_contract_list_read(snapshot->identity.address,&snapshot->contracts)==0)snapshot->contracts_available=1;snapshot->activity_count=stnc_log_recent_count();if(snapshot->activity_count>5)snapshot->activity_count=5;for(i=0;i<snapshot->activity_count;++i)stnc_log_recent_get(i,snapshot->activity[i],sizeof(snapshot->activity[i]));return 0;}
+{
+    const stnc_config *config;size_t i;uint64_t now;int refresh;
+    if(snapshot==NULL)return 1;
+    memset(snapshot,0,sizeof(*snapshot));
+    if(stnc_identity_status_read(&snapshot->identity)!=0)return 1;
+    stnc_core_get_runtime_status(&snapshot->network);
+    config=stnc_config_get();
+    if(config!=NULL)snapshot->config=*config;
+    now=stnc_platform_monotonic_ms();
+    refresh=!display_valid || now<display_checked_ms || now-display_checked_ms>=10000u ||
+        display_connected!=snapshot->network.chain_connected ||
+        strcmp(display_identity,snapshot->identity.address)!=0 ||
+        strcmp(display_peer,snapshot->config.peer)!=0 || display_port!=snapshot->config.port;
+    if(refresh){
+        check_tracked_transaction();
+        memset(&display_wallet,0,sizeof(display_wallet));
+        memset(&display_contracts,0,sizeof(display_contracts));
+        display_contracts_available=0;
+        if(stnc_wallet_status_read(&display_wallet)!=0)return 1;
+        stnc_core_get_runtime_status(&snapshot->network);
+        if(snapshot->identity.valid && snapshot->network.chain_connected &&
+           stnc_contract_list_read(snapshot->identity.address,&display_contracts)==0)
+            display_contracts_available=1;
+        stnc_core_get_runtime_status(&snapshot->network);
+        display_connected=snapshot->network.chain_connected;
+        if(!display_connected){display_wallet.balance_available=0;display_contracts_available=0;}
+        snprintf(display_identity,sizeof(display_identity),"%s",snapshot->identity.address);
+        snprintf(display_peer,sizeof(display_peer),"%s",snapshot->config.peer);
+        display_port=snapshot->config.port;
+        display_checked_ms=stnc_platform_monotonic_ms();display_valid=1;
+    }
+    snapshot->wallet=display_wallet;snapshot->contracts=display_contracts;
+    snapshot->contracts_available=display_contracts_available;
+    snapshot->chain=*stnc_core_get_chain_state();snapshot->peer=*stnc_core_get_peer_status();
+    stnc_background_mining_status(&snapshot->mining);
+    snapshot->stratum_connected=stnc_background_mining_connected();
+    snapshot->activity_count=stnc_log_recent_count();
+    if(snapshot->activity_count>5)snapshot->activity_count=5;
+    for(i=0;i<snapshot->activity_count;++i)
+        stnc_log_recent_get(i,snapshot->activity[i],sizeof(snapshot->activity[i]));
+    return 0;
+}
 int stnc_client_execute(const stnc_client_request *request,char *result,size_t capacity)
 {
     int rc=1;if(request==NULL||result==NULL||capacity==0)return 1;snprintf(result,capacity,"Operation failed.");
     if(memchr(request->address,0,sizeof(request->address))==NULL||memchr(request->units,0,sizeof(request->units))==NULL||memchr(request->path,0,sizeof(request->path))==NULL){snprintf(result,capacity,"Unterminated request field.");return 1;}
+    display_valid=0;
     switch(request->operation){
     case STNC_CLIENT_REFRESH:check_tracked_transaction();snprintf(result,capacity,"Status refreshed from Core services.");rc=0;break;
     case STNC_CLIENT_CREATE_WALLET:{stnc_wallet_key key;char address[71];memset(&key,0,sizeof(key));if(stnc_wallet_store_create(&key)==0&&stnc_wallet_address(&key,address)==0){snprintf(result,capacity,"Wallet created: %s",address);rc=0;}else snprintf(result,capacity,"Wallet creation failed. An existing wallet is never replaced.");stnc_wallet_clear(&key);break;}

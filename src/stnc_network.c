@@ -74,6 +74,12 @@ int stnc_network_send(stnc_network_connection *connection,const unsigned char *b
         if(stnc_mutex_lock(&connection->rpc_mutex)!=0)return 1;
         connection->rpc_active=1;
         connection->rpc_payload_remaining=0u;
+        /* Chain may validate accepted history before replying. P2P and Stratum
+         * retain their short socket waits; only STNC RPC gets this allowance. */
+        if(stnc_platform_network_timeout(connection->handle,60000u)!=0){
+            stnc_network_fail(connection);
+            return 1;
+        }
     }
     if(stnc_platform_network_send(connection->handle,buffer,length)!=0){
         stnc_network_fail(connection);

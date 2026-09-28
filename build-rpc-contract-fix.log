@@ -1,0 +1,271 @@
+main.c
+stnc_command.c
+stnc_client.c
+stnc_identity.c
+stnc_compensation.c
+stnc_contract_draft.c
+stnc_contract_action.c
+stnc_contract_create.c
+stnc_contract_list.c
+stnc_contract_list_network.c
+gui_windows.c
+stnc_background_mining.c
+stnc_contract_status.c
+stnc_transaction_status.c
+stnc_core.c
+stnc_log.c
+stnc_mining.c
+stnc_mining_service.c
+stnc_stratum.c
+stnc_stratum_client.c
+Generating Code...
+Compiling...
+stnc_config.c
+stnc_directory.c
+stnc_http.c
+stnc_network.c
+stnc_peers.c
+stnc_peer_select.c
+stnc_stnc.c
+stnc_stnp.c
+stnc_transfer.c
+stnc_wallet.c
+stnc_wallet_store.c
+stnc_wallet_status.c
+platform_windows.c
+stnc_mutex_windows.c
+ed25519_provider.c
+Generating Code...
+test_stnc_log.c
+stnc_log.c
+Generating Code...
+Log tests passed.
+test_stnc_stnp.c
+stnc_stnp.c
+Generating Code...
+STNP codec tests passed.
+test_stnc_peers.c
+stnc_peers.c
+Generating Code...
+test_stnc_directory.c
+stnc_directory.c
+stnc_peers.c
+Generating Code...
+test_stnc_http.c
+stnc_http.c
+Generating Code...
+test_stnc_peer_select.c
+stnc_peer_select.c
+Generating Code...
+test_stnc_stnc.c
+stnc_stnc.c
+Generating Code...
+STNC codec tests passed.
+test_stnc_contract_list.c
+stnc_contract_list.c
+Generating Code...
+STNC Contract list tests passed.
+test_stnc_mining.c
+stnc_mining.c
+Generating Code...
+STNC mining tests passed.
+test_stnc_mining_service.c
+stnc_mining_service.c
+Generating Code...
+Mining service tests passed.
+test_stnc_stratum.c
+stnc_stratum.c
+Generating Code...
+STNM protocol tests passed.
+test_stnc_stratum_client.c
+stnc_stratum_client.c
+stnc_stratum.c
+Generating Code...
+Stratum client tests passed.
+test_stnc_background_mining.c
+stnc_background_mining.c
+stnc_mining_service.c
+stnc_log.c
+Generating Code...
+Background mining compensation lifecycle tests passed.
+test_stnc_mutex.c
+stnc_mutex_windows.c
+Generating Code...
+test_stnc_compensation.c
+stnc_compensation.c
+stnc_wallet.c
+stnc_wallet_store.c
+stnc_identity.c
+stnc_core.c
+stnc_background_mining.c
+stnc_stratum_client.c
+stnc_stratum.c
+stnc_mining_service.c
+stnc_mining.c
+stnc_log.c
+stnc_config.c
+stnc_directory.c
+stnc_http.c
+stnc_network.c
+stnc_peers.c
+stnc_peer_select.c
+stnc_stnc.c
+stnc_stnp.c
+Generating Code...
+Compiling...
+platform_windows.c
+stnc_mutex_windows.c
+ed25519_provider.c
+Generating Code...
+STNC compensation mapping tests passed.
+test_stnc_wallet.c
+stnc_wallet.c
+stnc_identity.c
+stnc_compensation.c
+stnc_core.c
+stnc_background_mining.c
+stnc_stratum_client.c
+stnc_stratum.c
+stnc_mining_service.c
+stnc_mining.c
+stnc_wallet_store.c
+stnc_log.c
+stnc_config.c
+stnc_directory.c
+stnc_http.c
+stnc_network.c
+stnc_peers.c
+stnc_peer_select.c
+stnc_stnc.c
+stnc_stnp.c
+Generating Code...
+Compiling...
+platform_windows.c
+stnc_mutex_windows.c
+ed25519_provider.c
+Generating Code...
+Wallet transfer tests passed.
+test_stnc_wallet_store.c
+stnc_wallet_store.c
+stnc_wallet.c
+stnc_identity.c
+src\stnc_identity.c(1): warning C4005: '_CRT_SECURE_NO_WARNINGS': macro redefinition
+src\stnc_identity.c(1): note: '_CRT_SECURE_NO_WARNINGS' previously declared on the command line
+stnc_compensation.c
+platform_windows.c
+stnc_mutex_windows.c
+ed25519_provider.c
+stnc_core.c
+stnc_background_mining.c
+stnc_stratum_client.c
+stnc_stratum.c
+stnc_mining_service.c
+stnc_mining.c
+stnc_log.c
+stnc_config.c
+stnc_directory.c
+stnc_http.c
+stnc_network.c
+stnc_peers.c
+Generating Code...
+Compiling...
+stnc_peer_select.c
+stnc_stnc.c
+stnc_stnp.c
+Generating Code...
+Wallet store tests passed.
+test_stnc_wallet_status.c
+stnc_wallet_status.c
+Generating Code...
+Wallet status tests passed.
+test_stnc_contract_status.c
+stnc_contract_status.c
+Generating Code...
+Contract status tests passed.
+test_stnc_transfer.c
+stnc_transfer.c
+Generating Code...
+STNC transfer tests passed.
+test_stnc_identity.c
+stnc_identity.c
+stnc_wallet.c
+stnc_compensation.c
+stnc_core.c
+stnc_background_mining.c
+stnc_stratum_client.c
+stnc_stratum.c
+stnc_mining_service.c
+stnc_mining.c
+stnc_wallet_store.c
+stnc_log.c
+stnc_config.c
+stnc_directory.c
+stnc_http.c
+stnc_network.c
+stnc_peers.c
+stnc_peer_select.c
+stnc_stnc.c
+stnc_stnp.c
+Generating Code...
+Compiling...
+platform_windows.c
+stnc_mutex_windows.c
+ed25519_provider.c
+Generating Code...
+STNC identity tests passed.
+test_stnc_contract_draft.c
+stnc_contract_draft.c
+stnc_wallet.c
+stnc_identity.c
+stnc_compensation.c
+stnc_core.c
+stnc_background_mining.c
+stnc_stratum_client.c
+stnc_stratum.c
+stnc_mining_service.c
+stnc_mining.c
+stnc_wallet_store.c
+stnc_log.c
+stnc_config.c
+stnc_directory.c
+stnc_http.c
+stnc_network.c
+stnc_peers.c
+stnc_peer_select.c
+stnc_stnc.c
+Generating Code...
+Compiling...
+stnc_stnp.c
+platform_windows.c
+stnc_mutex_windows.c
+ed25519_provider.c
+Generating Code...
+STNC Contract draft tests passed.
+test_stnc_contract_action.c
+stnc_contract_action.c
+Generating Code...
+STNC Contract action tests passed.
+test_stnc_contract_create.c
+stnc_contract_create.c
+Generating Code...
+STNC Contract create tests passed.
+test_stnc_client.c
+stnc_client.c
+Generating Code...
+STNC client boundary tests passed.
+test_stnc_transaction_status.c
+test_stnc_gui.c
+STNC native GUI smoke tests passed.
+test_stnc_rpc_timeout.c
+stnc_network.c
+Generating Code...
+STNC RPC timeout and cleanup tests passed.
+test_stnc_contract_list_network.c
+stnc_contract_list_network.c
+stnc_contract_list.c
+stnc_stnc.c
+Generating Code...
+STNC Contract list transport tests passed.
+ 
+BUILD SUCCESSFUL 
+build\stnc-core.exe

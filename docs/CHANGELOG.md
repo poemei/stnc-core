@@ -10,6 +10,13 @@ STNC Core is currently under active development. Development versions do not rep
 ---
 
 ## Unreleased
+### RPC availability and contract reads - 2026-09-27
+
+- Give STNC RPC sockets a 60-second I/O allowance. P2P and Stratum retain their five-second default. Live Chain INFO/BALANCE responses took 5.07/8.12/5.72 seconds; contract listing took 7.36 seconds and an unknown-contract lookup correctly returned NOT_FOUND after 7.12 seconds.
+- Poll display balances, contract lists and tracked acceptance at most once per ten seconds after completion, instead of on every one-second GUI refresh. Explicit actions, observed disconnect/reconnect, identity and endpoint changes invalidate the display cache. Failed reads show unavailable, never fabricated balances or contract acceptance.
+- Validate contract response kind and close failed temporary sessions even after transport has already marked them disconnected. Retire unread/malformed address-query responses rather than retaining a contaminated shared RPC stream. Preserve a usable connection for empty application-error responses such as NOT_FOUND. Log RPC method/result failures.
+- Release the prior RPC mutex on reconnect, including after transport failure.
+- CL build and complete build.cmd test suite passed, including new timeout/cleanup and contract-list transport tests and polling regression cases. Live queries were read-only: no transfers or contracts submitted. No deployment, version increment or commit. Chain's server-side history reconstruction cost remains unchanged; slow replies can still block Core's worker within the bounded RPC wait.
 
 - Route CLI transfers through `stnc_transfer_send`, removing duplicate wallet
   loading, signing, submission, balance querying and result-name mapping.

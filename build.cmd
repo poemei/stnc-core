@@ -45,5 +45,7 @@ cl /nologo /W4 /TC /Iincludes tests\test_stnc_contract_create.c src\stnc_contrac
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_client.c src\stnc_client.c /Fe:build\test-stnc-client.exe && build\test-stnc-client.exe || exit /b 1
 cl /nologo /W4 /TC /Iincludes tests\test_stnc_transaction_status.c /Fe:build\test-stnc-transaction-status.exe && build\test-stnc-transaction-status.exe || exit /b 1
 cl /nologo /W4 /TC tests\test_stnc_gui.c /Fe:build\test-stnc-gui.exe /link user32.lib gdi32.lib && build\test-stnc-gui.exe || exit /b 1
+cl /nologo /W4 /WX /TC /Iincludes tests\test_stnc_rpc_timeout.c src\stnc_network.c /Fe:build\test-stnc-rpc-timeout.exe && build\test-stnc-rpc-timeout.exe || exit /b 1
+cl /nologo /W4 /WX /TC /Iincludes tests\test_stnc_contract_list_network.c src\stnc_contract_list_network.c src\stnc_contract_list.c src\stnc_stnc.c /Fe:build\test-stnc-contract-list-network.exe && build\test-stnc-contract-list-network.exe || exit /b 1
 echo. & echo BUILD SUCCESSFUL & echo build\stnc-core.exe
 endlocal

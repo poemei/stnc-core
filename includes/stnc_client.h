@@ -44,6 +44,10 @@ typedef struct stnc_client_request {
     uint8_t terms[65536];
 } stnc_client_request;
 
+/* Owner-thread display read. Accepted balance/contract reads are polled at
+ * most every ten seconds; failed reads remain unavailable. Explicit actions,
+ * connection changes and identity/endpoint changes invalidate the display cache.
+ * This cache must never be used for transaction authorization. */
 int stnc_client_read(stnc_client_snapshot *snapshot);
 int stnc_client_execute(const stnc_client_request *request,char *result,size_t capacity);
 int stnc_client_parse_units(const char *text,uint64_t *units);

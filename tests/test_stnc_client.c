@@ -9,11 +9,14 @@ static uint16_t submission=STNC_STNC_SUBMISSION_ADMITTED;
 static stnc_core_chain_state chain;
 static stnc_core_peer_status peer;
 static stnc_config config;
+static uint64_t now_ms;
+static int wallet_reads;
+uint64_t stnc_platform_monotonic_ms(void){return now_ms;}
 int stnc_wallet_store_load(stnc_wallet_key *key){memset(key,0,sizeof(*key));return wallet?0:1;}
 void stnc_wallet_clear(stnc_wallet_key *key){memset(key,0,sizeof(*key));}
 int stnc_wallet_store_create(stnc_wallet_key *key){(void)key;return 1;}
 int stnc_wallet_address(const stnc_wallet_key *key,char *address){(void)key;(void)address;return 1;}
-int stnc_wallet_status_read(stnc_wallet_status *status){memset(status,0,sizeof(*status));status->present=wallet;status->key_valid=wallet;return 0;}
+int stnc_wallet_status_read(stnc_wallet_status *status){wallet_reads++;memset(status,0,sizeof(*status));status->present=wallet;status->key_valid=wallet;return 0;}
 int stnc_identity_status_read(stnc_identity_status *status){memset(status,0,sizeof(*status));return 0;}
 int stnc_identity_create(stnc_identity_status *status){(void)status;return 1;}
 void stnc_core_get_runtime_status(stnc_core_runtime_status *status){memset(status,0,sizeof(*status));}
@@ -66,6 +69,13 @@ int main(void)
     CHECK(stnc_client_execute(&request,result,sizeof(result))==0);
     CHECK(strstr(result,"stnc0_")&&strstr(result,"Chain acceptance: pending"));
     CHECK(stnc_client_read(&snapshot)==0&&acceptance_checks==1);
+    CHECK(stnc_client_read(&snapshot)==0&&acceptance_checks==1);
+    now_ms+=10000u;
     CHECK(stnc_client_read(&snapshot)==0&&acceptance_checks==2);
+    {int reads=wallet_reads;CHECK(stnc_client_read(&snapshot)==0&&wallet_reads==reads);
+     now_ms+=9999u;CHECK(stnc_client_read(&snapshot)==0&&wallet_reads==reads);
+     now_ms++;CHECK(stnc_client_read(&snapshot)==0&&wallet_reads==reads+1);
+     request.operation=STNC_CLIENT_REFRESH;CHECK(stnc_client_execute(&request,result,sizeof(result))==0);
+     CHECK(stnc_client_read(&snapshot)==0&&wallet_reads==reads+2);}
     puts("STNC client boundary tests passed.");return 0;
 }
