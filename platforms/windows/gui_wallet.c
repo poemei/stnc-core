@@ -31,8 +31,25 @@ static void render(void){stnc_client_snapshot s;char balance[64]="Unavailable",h
  else if(ui.page==PAGE_OVERVIEW){SetWindowTextA(ui.title,"Overview");snprintf(text,sizeof(text),"STN CHAIN\r\nDistributed trust for verifiable intelligence\r\n\r\nBalance        %s\r\nWallet         %s\r\nIdentity       %s\r\nContracts      Verifiable agreements\r\nRecords        Permanent Chain records\r\n\r\nNetwork        %s\r\nMining         %s   %" PRIu64 " H/s\r\nChain height   %s",balance,s.wallet.key_valid?"Ready":"Not configured",s.identity.valid?"Ready":"Not configured",s.network.chain_connected?"Connected":"Disconnected",s.mining.running?"Running":"Idle",s.mining.hashrate_hps,height);SetWindowTextA(ui.body,text);}
  else if(ui.page==PAGE_SEND){SetWindowTextA(ui.title,"Send STNC");snprintf(text,sizeof(text),"Available: %s\r\n\r\nPay to\r\n\r\n\r\nAmount",balance);SetWindowTextA(ui.body,text);ShowWindow(GetDlgItem(ui.window,ID_DESTINATION),SW_SHOW);ShowWindow(GetDlgItem(ui.window,ID_AMOUNT),SW_SHOW);ShowWindow(GetDlgItem(ui.window,ID_SEND_NOW),SW_SHOW);}
  else if(ui.page==PAGE_RECEIVE){SetWindowTextA(ui.title,"Receive STNC");snprintf(text,sizeof(text),"Receiving address\r\n\r\n%s\r\n\r\nAccepted balance: %s",s.wallet.key_valid?s.wallet.address:"No wallet configured.",balance);SetWindowTextA(ui.body,text);if(s.wallet.key_valid)ShowWindow(GetDlgItem(ui.window,ID_COPY),SW_SHOW);}
- else if(ui.page==PAGE_WALLET){SetWindowTextA(ui.title,"Wallet");snprintf(text,sizeof(text),"ADDRESS\r\n%s\r\n\r\nBALANCE\r\n%s\r\n\r\nIDENTITY\r\n%s\r\n\r\nCONTRACT ADDRESS\r\nNot configured",s.wallet.key_valid?s.wallet.address:"No wallet configured.",balance,s.identity.valid?s.identity.address:"No identity configured.");SetWindowTextA(ui.body,text);if(!s.wallet.present)ShowWindow(GetDlgItem(ui.window,ID_CREATE_WALLET),SW_SHOW);if(!s.identity.present)ShowWindow(GetDlgItem(ui.window,ID_CREATE_IDENTITY),SW_SHOW);}
- else if(ui.page==PAGE_CONTRACTS){SetWindowTextA(ui.title,"Contracts");SetWindowTextA(ui.body,"STN Chain Contracts\r\n\r\nCreate, inspect, and manage verifiable agreements.\r\nContract actions remain bounded by accepted identity and authority evidence.");}
+ else if(ui.page==PAGE_WALLET){SetWindowTextA(ui.title,"Wallet");snprintf(text,sizeof(text),"ADDRESS\r\n%s\r\n\r\nBALANCE\r\n%s\r\n\r\nIDENTITY\r\n%s",s.wallet.key_valid?s.wallet.address:"No wallet configured.",balance,s.identity.valid?s.identity.address:"No identity configured.");SetWindowTextA(ui.body,text);if(!s.wallet.present)ShowWindow(GetDlgItem(ui.window,ID_CREATE_WALLET),SW_SHOW);if(!s.identity.present)ShowWindow(GetDlgItem(ui.window,ID_CREATE_IDENTITY),SW_SHOW);}
+ else if(ui.page==PAGE_CONTRACTS){
+    SetWindowTextA(ui.title,"Contracts");text[0]='\0';used=0u;
+    if(!s.identity.valid)snprintf(text,sizeof(text),"No identity configured.");
+    else if(!s.network.chain_connected)snprintf(text,sizeof(text),"Contracts unavailable while Chain is disconnected.");
+    else if(!s.contracts_available)snprintf(text,sizeof(text),"Accepted Contract list unavailable.");
+    else if(s.contracts.count==0u)snprintf(text,sizeof(text),"No Contract associated");
+    else {
+        for(i=0u;i<s.contracts.count;++i){
+            const stnc_contract_list_entry *e=&s.contracts.entries[i];
+            int n=snprintf(text+used,sizeof(text)-used,
+                "%s\r\nState: %s   Type: %s\r\nSequence: %" PRIu64 "   Created: %" PRIu64 "%s",
+                e->address,stnc_contract_state_name(e->state),stnc_contract_type_name(e->type),
+                e->sequence,e->created_at,i+1u<s.contracts.count?"\r\n\r\n":"");
+            if(n<0||(size_t)n>=sizeof(text)-used)break;used+=(size_t)n;
+        }
+    }
+    SetWindowTextA(ui.body,text);
+ }
  else if(ui.page==PAGE_ACTIVITY){SetWindowTextA(ui.title,"Activity");text[0]=0;for(i=0;i<s.activity_count&&i<5;++i){int n=snprintf(text+used,sizeof(text)-used,"%s%s",s.activity[i],i+1<s.activity_count?"\r\n\r\n":"");if(n<0||(size_t)n>=sizeof(text)-used)break;used+=(size_t)n;}if(!s.activity_count)snprintf(text,sizeof(text),"No recent activity.");SetWindowTextA(ui.body,text);}
  else {SetWindowTextA(ui.title,"Mining Settings");snprintf(text,sizeof(text),"Mining is %s\r\n\r\nBackend       %s\r\nCPU limit     %u%%\r\nStratum       %s:%u\r\nHashrate      %" PRIu64 " H/s",s.mining.running?"ON":"OFF",s.mining.running?stnc_mining_backend_name(s.mining.active_backend):s.config.mining_backend,s.config.mining_cpu_limit_percent,s.config.stratum_host,(unsigned)s.config.stratum_port,s.mining.hashrate_hps);SetWindowTextA(ui.body,text);ShowWindow(GetDlgItem(ui.window,ID_MINING_ON),SW_SHOW);ShowWindow(GetDlgItem(ui.window,ID_MINING_OFF),SW_SHOW);EnableWindow(GetDlgItem(ui.window,ID_MINING_ON),ready&&!busy&&s.wallet.key_valid);EnableWindow(GetDlgItem(ui.window,ID_MINING_OFF),ready&&!busy);}
  if(!ready)snprintf(sync,sizeof(sync),"Starting Core...");else if(!s.network.chain_connected)snprintf(sync,sizeof(sync),"Disconnected");else if(s.network.peer_current)snprintf(sync,sizeof(sync),"Synchronized   |   Height %s",height);else snprintf(sync,sizeof(sync),"Synchronizing   |   Height %s",height);SetWindowTextA(ui.sync,sync);ShowWindow(ui.progress,ready&&s.network.chain_connected&&!s.network.peer_current?SW_SHOW:SW_HIDE);SendMessage(ui.progress,PBM_SETMARQUEE,TRUE,0);}
