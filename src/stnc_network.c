@@ -5,6 +5,14 @@
 
 static int network_initialized = 0;
 
+static void stnc_network_fail(stnc_network_connection *connection)
+{
+    if(connection==NULL)return;
+    if(connection->handle!=NULL)stnc_platform_network_disconnect(connection->handle);
+    connection->handle=NULL;
+    connection->connected=0;
+}
+
 int stnc_network_init(void)
 {
     if (network_initialized) {
@@ -77,11 +85,11 @@ int stnc_network_send(
         return 1;
     }
 
-    return stnc_platform_network_send(
-        connection->handle,
-        buffer,
-        length
-    );
+    if(stnc_platform_network_send(connection->handle,buffer,length)!=0){
+        stnc_network_fail(connection);
+        return 1;
+    }
+    return 0;
 }
 
 int stnc_network_receive(
@@ -99,11 +107,11 @@ int stnc_network_receive(
         return 1;
     }
 
-    return stnc_platform_network_receive(
-        connection->handle,
-        buffer,
-        length
-    );
+    if(stnc_platform_network_receive(connection->handle,buffer,length)!=0){
+        stnc_network_fail(connection);
+        return 1;
+    }
+    return 0;
 }
 
 void stnc_network_disconnect(
@@ -131,5 +139,5 @@ int stnc_network_is_connected(
         return 0;
     }
 
-    return connection->connected;
+    return connection->connected && connection->handle != NULL;
 }
