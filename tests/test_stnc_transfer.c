@@ -14,7 +14,9 @@ static int balance_error=0;
 static int supply_transaction_id=1;
 static uint64_t balance_value=125u;
 static unsigned submit_calls=0u;
+static unsigned error_logs=0u;
 
+void stnc_log_error(const char *message){if(message!=NULL&&*message)error_logs++;}
 int stnc_wallet_store_load(stnc_wallet_key *key){if(!wallet_available||key==NULL)return 1;*key=stored;return 0;}
 int stnc_wallet_address(const stnc_wallet_key *key,char address[STNC_WALLET_ADDRESS_SIZE+1u])
 {(void)key;memcpy(address,"stnw0_1111111111111111111111111111111111111111111111111111111111111111",71u);return 0;}
@@ -33,6 +35,7 @@ static int fail(int line){fprintf(stderr,"STNC transfer test failed at line %d.\
 int main(void)
 {
     stnc_transfer_result result;
+    unsigned before;
     const char *destination="stnw0_2222222222222222222222222222222222222222222222222222222222222222";
     memset(&stored,0,sizeof(stored));memset(&result,0,sizeof(result));
     CHECK(stnc_transfer_send(destination,25u,&result)==0);
@@ -44,10 +47,10 @@ int main(void)
     submit_result=STNC_STNC_SUBMISSION_REPLAY;balance_error=1;
     CHECK(stnc_transfer_send(destination,25u,&result)==0&&!result.balance_available);
     CHECK(submit_calls==3u);
-    CHECK(stnc_transfer_send(destination,0u,&result)!=0);
-    CHECK(stnc_transfer_send("bad",1u,&result)!=0);
-    wallet_available=0;CHECK(stnc_transfer_send(destination,1u,&result)!=0);
-    wallet_available=1;submit_error=1;CHECK(stnc_transfer_send(destination,1u,&result)!=0);
+    before=error_logs;CHECK(stnc_transfer_send(destination,0u,&result)!=0&&error_logs==before+1u);
+    before=error_logs;CHECK(stnc_transfer_send("bad",1u,&result)!=0&&error_logs==before+1u);
+    wallet_available=0;before=error_logs;CHECK(stnc_transfer_send(destination,1u,&result)!=0&&error_logs==before+1u);
+    wallet_available=1;submit_error=1;before=error_logs;CHECK(stnc_transfer_send(destination,1u,&result)!=0&&error_logs==before+1u);
     CHECK(submit_calls==3u);
     submit_error=0;submit_result=STNC_STNC_SUBMISSION_ADMITTED;supply_transaction_id=0;
     CHECK(stnc_transfer_send(destination,25u,&result)==0);
