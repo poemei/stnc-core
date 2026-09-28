@@ -1,9 +1,10 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include "stnc_client.h"
 #include "stnc_transfer.h"
+#include "stnc_transaction_status.h"
 #include <stdio.h>
 #include <string.h>
-static int wallet,enabled,submitted,queried;
+static int wallet,enabled,submitted,queried,acceptance_checks;
 static uint16_t submission=STNC_STNC_SUBMISSION_ADMITTED;
 static stnc_core_chain_state chain;
 static stnc_core_peer_status peer;
@@ -28,6 +29,7 @@ size_t stnc_log_recent_count(void){return 5;}
 int stnc_log_recent_get(size_t index,char *entry,size_t capacity){snprintf(entry,capacity,"event %zu",index);return 0;}
 void stnc_log_info(const char *text){(void)text;}
 void stnc_log_warning(const char *text){(void)text;}
+stnc_transaction_acceptance stnc_transaction_status_query(const uint8_t id[32],stnc_transaction_status *status){(void)id;acceptance_checks++;memset(status,0,sizeof(*status));status->height=99u;memset(status->block_id,0x44,32u);status->transaction_position=2u;return acceptance_checks>1?STNC_TRANSACTION_ACCEPTANCE_ACCEPTED:STNC_TRANSACTION_ACCEPTANCE_PENDING;}
 int stnc_transfer_send(const char *destination,uint64_t units,stnc_transfer_result *result)
 {(void)destination;(void)units;if(!wallet)return 1;submitted++;memset(result,0,sizeof(*result));result->submission=submission;return 0;}
 const char *stnc_transfer_submission_name(uint16_t value){return value==0?"admitted":"unauthorized";}
@@ -62,6 +64,8 @@ int main(void)
     CHECK(stnc_client_execute(&request,result,sizeof(result))==0&&strstr(result,"Sequence: 7"));
     memset(&request,0,sizeof(request));request.operation=STNC_CLIENT_CREATE_CONTRACT;
     CHECK(stnc_client_execute(&request,result,sizeof(result))==0);
-    CHECK(strstr(result,"stnc0_")&&strstr(result,"Pending Chain acceptance."));
+    CHECK(strstr(result,"stnc0_")&&strstr(result,"Chain acceptance: pending"));
+    CHECK(stnc_client_read(&snapshot)==0&&acceptance_checks==1);
+    CHECK(stnc_client_read(&snapshot)==0&&acceptance_checks==2);
     puts("STNC client boundary tests passed.");return 0;
 }
