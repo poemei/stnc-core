@@ -1,9 +1,42 @@
 #include "stnc_client.h"
 #include "stnc_transfer.h"
+#include "stnc_transaction_status.h"
 #include "stnc_wallet_store.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+
+static uint8_t tracked_transaction_id[32];
+static int tracked_transaction;
+
+static void track_transaction(const uint8_t id[32])
+{
+    if(id==NULL)return;
+    memcpy(tracked_transaction_id,id,32u);
+    tracked_transaction=1;
+}
+
+static void check_tracked_transaction(void)
+{
+    stnc_transaction_status status;
+    stnc_transaction_acceptance acceptance;
+    char message[256],id[65],block[65];
+    size_t i;
+    if(!tracked_transaction)return;
+    acceptance=stnc_transaction_status_query(tracked_transaction_id,&status);
+    if(acceptance!=STNC_TRANSACTION_ACCEPTANCE_ACCEPTED)return;
+    for(i=0u;i<32u;++i){
+        snprintf(id+2u*i,3u,"%02x",(unsigned int)tracked_transaction_id[i]);
+        snprintf(block+2u*i,3u,"%02x",(unsigned int)status.block_id[i]);
+    }
+    id[64]='\0';block[64]='\0';
+    snprintf(message,sizeof(message),
+        "Chain accepted transaction %s at height %" PRIu64 " block %s position %u.",
+        id,status.height,block,(unsigned int)status.transaction_position);
+    stnc_log_info(message);
+    tracked_transaction=0;
+    memset(tracked_transaction_id,0,sizeof(tracked_transaction_id));
+}
 
 int stnc_client_parse_units(const char *text,uint64_t *units)
 {uint64_t value=0;size_t i;if(text==NULL||units==NULL||!*text)return 1;for(i=0;text[i];++i){unsigned int d;if(text[i]<'0'||text[i]>'9')return 1;d=(unsigned int)(text[i]-'0');if(value>(UINT64_MAX-d)/10)return 1;value=value*10+d;}if(!value)return 1;*units=value;return 0;}
@@ -12,21 +45,21 @@ int stnc_client_wallet_address_valid(const char *address)
 int stnc_client_set_mining(int enabled)
 {stnc_wallet_key key;int valid;if(enabled!=0&&enabled!=1)return 1;if(enabled){memset(&key,0,sizeof(key));valid=stnc_wallet_store_load(&key)==0;stnc_wallet_clear(&key);if(!valid)return 1;}return stnc_config_set_mining_enabled(enabled);}
 int stnc_client_read(stnc_client_snapshot *snapshot)
-{const stnc_config *config;size_t i;if(snapshot==NULL)return 1;memset(snapshot,0,sizeof(*snapshot));if(stnc_wallet_status_read(&snapshot->wallet)!=0||stnc_identity_status_read(&snapshot->identity)!=0)return 1;stnc_core_get_runtime_status(&snapshot->network);snapshot->chain=*stnc_core_get_chain_state();snapshot->peer=*stnc_core_get_peer_status();stnc_background_mining_status(&snapshot->mining);snapshot->stratum_connected=stnc_background_mining_connected();config=stnc_config_get();if(config!=NULL)snapshot->config=*config;if(snapshot->identity.valid&&snapshot->network.chain_connected&&stnc_contract_list_read(snapshot->identity.address,&snapshot->contracts)==0)snapshot->contracts_available=1;snapshot->activity_count=stnc_log_recent_count();if(snapshot->activity_count>5)snapshot->activity_count=5;for(i=0;i<snapshot->activity_count;++i)stnc_log_recent_get(i,snapshot->activity[i],sizeof(snapshot->activity[i]));return 0;}
+{const stnc_config *config;size_t i;if(snapshot==NULL)return 1;check_tracked_transaction();memset(snapshot,0,sizeof(*snapshot));if(stnc_wallet_status_read(&snapshot->wallet)!=0||stnc_identity_status_read(&snapshot->identity)!=0)return 1;stnc_core_get_runtime_status(&snapshot->network);snapshot->chain=*stnc_core_get_chain_state();snapshot->peer=*stnc_core_get_peer_status();stnc_background_mining_status(&snapshot->mining);snapshot->stratum_connected=stnc_background_mining_connected();config=stnc_config_get();if(config!=NULL)snapshot->config=*config;if(snapshot->identity.valid&&snapshot->network.chain_connected&&stnc_contract_list_read(snapshot->identity.address,&snapshot->contracts)==0)snapshot->contracts_available=1;snapshot->activity_count=stnc_log_recent_count();if(snapshot->activity_count>5)snapshot->activity_count=5;for(i=0;i<snapshot->activity_count;++i)stnc_log_recent_get(i,snapshot->activity[i],sizeof(snapshot->activity[i]));return 0;}
 int stnc_client_execute(const stnc_client_request *request,char *result,size_t capacity)
 {
     int rc=1;if(request==NULL||result==NULL||capacity==0)return 1;snprintf(result,capacity,"Operation failed.");
     if(memchr(request->address,0,sizeof(request->address))==NULL||memchr(request->units,0,sizeof(request->units))==NULL||memchr(request->path,0,sizeof(request->path))==NULL){snprintf(result,capacity,"Unterminated request field.");return 1;}
     switch(request->operation){
-    case STNC_CLIENT_REFRESH:snprintf(result,capacity,"Status refreshed from Core services.");rc=0;break;
+    case STNC_CLIENT_REFRESH:check_tracked_transaction();snprintf(result,capacity,"Status refreshed from Core services.");rc=0;break;
     case STNC_CLIENT_CREATE_WALLET:{stnc_wallet_key key;char address[71];memset(&key,0,sizeof(key));if(stnc_wallet_store_create(&key)==0&&stnc_wallet_address(&key,address)==0){snprintf(result,capacity,"Wallet created: %s",address);rc=0;}else snprintf(result,capacity,"Wallet creation failed. An existing wallet is never replaced.");stnc_wallet_clear(&key);break;}
     case STNC_CLIENT_CREATE_IDENTITY:{stnc_identity_status status;if(stnc_identity_create(&status)==0){snprintf(result,capacity,"Identity created: %s",status.address);rc=0;}else snprintf(result,capacity,"Identity creation failed. An existing identity is never replaced.");break;}
-    case STNC_CLIENT_SEND:{uint64_t units;stnc_transfer_result sent;char id[65]="not supplied",balance[64]="unavailable";size_t i;if(!request->confirmed||!stnc_client_wallet_address_valid(request->address)||stnc_client_parse_units(request->units,&units)!=0){snprintf(result,capacity,"A canonical wallet destination, positive whole units and confirmation are required.");break;}if(stnc_transfer_send(request->address,units,&sent)!=0){snprintf(result,capacity,"Transfer failed. Check wallet, destination and Chain connection; a transport failure may leave submission outcome unknown.");break;}if(sent.has_transaction_id){for(i=0;i<32;++i)snprintf(id+2*i,3,"%02x",(unsigned int)sent.transaction_id[i]);}if(sent.balance_available)snprintf(balance,sizeof(balance),"%" PRIu64,sent.accepted_balance);rc=(sent.submission==STNC_STNC_SUBMISSION_ADMITTED||sent.submission==STNC_STNC_SUBMISSION_DUPLICATE)?0:1;snprintf(result,capacity,"Destination: %s\r\nAmount: %" PRIu64 " units\r\n%s: %s\r\nTransaction: %s\r\nAccepted balance: %s\r\nAdmission is not Chain acceptance.",request->address,units,rc?"Rejected":"Submission",stnc_transfer_submission_name(sent.submission),id,balance);break;}
+    case STNC_CLIENT_SEND:{uint64_t units;stnc_transfer_result sent;char id[65]="not supplied",balance[64]="unavailable";size_t i;if(!request->confirmed||!stnc_client_wallet_address_valid(request->address)||stnc_client_parse_units(request->units,&units)!=0){snprintf(result,capacity,"A canonical wallet destination, positive whole units and confirmation are required.");break;}if(stnc_transfer_send(request->address,units,&sent)!=0){snprintf(result,capacity,"Transfer failed. Check wallet, destination and Chain connection; a transport failure may leave submission outcome unknown.");break;}if(sent.has_transaction_id){for(i=0;i<32;++i)snprintf(id+2*i,3,"%02x",(unsigned int)sent.transaction_id[i]);}if(sent.balance_available)snprintf(balance,sizeof(balance),"%" PRIu64,sent.accepted_balance);rc=(sent.submission==STNC_STNC_SUBMISSION_ADMITTED||sent.submission==STNC_STNC_SUBMISSION_DUPLICATE)?0:1;if(!rc&&sent.has_transaction_id)track_transaction(sent.transaction_id);snprintf(result,capacity,"Destination: %s\r\nAmount: %" PRIu64 " units\r\n%s: %s\r\nTransaction: %s\r\nAccepted balance: %s\r\nChain acceptance: %s",request->address,units,rc?"Rejected":"Submission",stnc_transfer_submission_name(sent.submission),id,balance,rc?"not admitted":"pending");break;}
     case STNC_CLIENT_MINING_ON:case STNC_CLIENT_MINING_OFF:rc=stnc_client_set_mining(request->operation==STNC_CLIENT_MINING_ON);snprintf(result,capacity,rc?"Mining update failed; enabling requires a valid stored wallet.":"Mining preference saved. The runtime applies it while Core remains open.");break;
     case STNC_CLIENT_CPU_LIMIT:rc=stnc_config_set_mining_cpu_limit(request->cpu_limit);snprintf(result,capacity,rc?"CPU limit must be 1 or 2 percent; configuration must be writable.":"CPU limit saved.");break;
     case STNC_CLIENT_CONTRACT_LOOKUP:{stnc_contract_status status;if(stnc_contract_status_read(request->address,&status)!=0){snprintf(result,capacity,"Malformed Contract address.");break;}if(!status.available){snprintf(result,capacity,"Accepted Contract state unavailable or not found.");break;}snprintf(result,capacity,"%s\r\nType: %s\r\nAccepted state: %s\r\nSequence: %" PRIu64 "\r\nParticipants: %u; terms bytes: %u",status.address,stnc_contract_type_name(status.state.type),stnc_contract_state_name(status.state.state),status.state.sequence,(unsigned int)status.state.participant_count,(unsigned int)status.state.terms_length);rc=0;break;}
     case STNC_CLIENT_SAVE_DRAFT:{stnc_contract_draft_input draft=request->draft;char address[71];draft.terms=request->terms;rc=stnc_contract_draft_save(&draft,request->path,address);if(rc==0)snprintf(result,capacity,"Local draft saved (not submitted or accepted).\r\n%s\r\n%s",address,request->path);else snprintf(result,capacity,"Draft save failed. Check inputs and choose a new file; existing files are never replaced.");break;}
-    case STNC_CLIENT_CREATE_CONTRACT:{stnc_contract_draft_input draft=request->draft;stnc_contract_create_result created;char id[65]="not supplied";size_t i;draft.terms=request->terms;if(stnc_contract_create(&draft,&created)!=0){snprintf(result,capacity,"Contract creation failed before Chain admission. Check identity, Contract fields and Chain connection.");break;}if(created.has_transaction_id){for(i=0;i<32;++i)snprintf(id+2*i,3,"%02x",(unsigned int)created.transaction_id[i]);}rc=(created.submission==STNC_STNC_SUBMISSION_ADMITTED||created.submission==STNC_STNC_SUBMISSION_DUPLICATE)?0:1;snprintf(result,capacity,"Contract: %s\r\n%s: %s\r\nTransaction: %s\r\n%s",created.address,rc?"Rejected":"Submission",stnc_transfer_submission_name(created.submission),id,rc?"Contract was not admitted.":"Pending Chain acceptance.");break;}
+    case STNC_CLIENT_CREATE_CONTRACT:{stnc_contract_draft_input draft=request->draft;stnc_contract_create_result created;char id[65]="not supplied";size_t i;draft.terms=request->terms;if(stnc_contract_create(&draft,&created)!=0){snprintf(result,capacity,"Contract creation failed before Chain admission. Check identity, Contract fields and Chain connection.");break;}if(created.has_transaction_id){for(i=0;i<32;++i)snprintf(id+2*i,3,"%02x",(unsigned int)created.transaction_id[i]);}rc=(created.submission==STNC_STNC_SUBMISSION_ADMITTED||created.submission==STNC_STNC_SUBMISSION_DUPLICATE)?0:1;if(!rc&&created.has_transaction_id)track_transaction(created.transaction_id);snprintf(result,capacity,"Contract: %s\r\n%s: %s\r\nTransaction: %s\r\nChain acceptance: %s",created.address,rc?"Rejected":"Submission",stnc_transfer_submission_name(created.submission),id,rc?"not admitted":"pending");break;}
     default:snprintf(result,capacity,"Unsupported operation.");break;
     }
     if(request->operation!=STNC_CLIENT_REFRESH){if(rc)stnc_log_warning(result);else stnc_log_info(result);}return rc;
