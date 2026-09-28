@@ -15,6 +15,7 @@ static int compensation_ok=1;
 static int job_ready=1;
 static unsigned compensation_calls;
 static unsigned connect_calls;
+static unsigned disconnect_calls;
 static unsigned poll_calls;
 static unsigned search_calls;
 static unsigned progress_calls;
@@ -56,7 +57,7 @@ int stnc_stratum_client_connect(stnc_stratum_client *client,const char *host,uns
     client->handle=client;client->connected=1;connect_calls++;return 0;
 }
 void stnc_stratum_client_disconnect(stnc_stratum_client *client)
-{if(client!=NULL){client->handle=NULL;client->connected=0;}}
+{if(client!=NULL){if(client->connected)disconnect_calls++;client->handle=NULL;client->connected=0;}}
 int stnc_stratum_client_poll_job(stnc_stratum_client *client,stnc_stratum_job *job,uint8_t *block,size_t capacity)
 {
     if(client==NULL||!client->connected||job==NULL||block==NULL||capacity<168u)return -1;
@@ -110,40 +111,56 @@ int main(void)
     CHECK(compensation_calls==3u&&connect_calls==1u&&poll_calls==1u&&search_calls==1u&&progress_calls==1u);
     CHECK(status.running&&status.active_backend==STNC_MINING_BACKEND_CPU);
     CHECK(status.hashrate_hps==25u);
+    CHECK(stnc_background_mining_connected());
     CHECK(strlen(observed_address)==69u&&strncmp(observed_address,"stn0_",5u)==0);
 
-    memcpy(config.stratum_host,"stratum2.stn-chain.org",sizeof("stratum2.stn-chain.org"));
-    config.stratum_port=18476u;job_ready=1;clock_ms=2000u;
+    /* Ordinary idle polling must retain the established transport. */
+    clock_ms=1500u;job_ready=0;
+    stnc_background_mining_tick();
+    CHECK(connect_calls==1u&&disconnect_calls==0u&&stnc_background_mining_connected());
+
+    /* A new JOB replaces active work in-place without reconnecting. */
+    clock_ms=2000u;job_ready=1;
     stnc_background_mining_tick();stnc_background_mining_status(&status);
-    CHECK(compensation_calls==3u&&connect_calls==2u&&status.running);
+    CHECK(connect_calls==1u&&disconnect_calls==0u&&status.running&&stnc_background_mining_connected());
+
+    /* Automatic -> CPU is a local backend selection, not a Stratum endpoint
+     * change. It may replace active work but must preserve the session. */
+    memcpy(config.mining_backend,"cpu",sizeof("cpu"));clock_ms=2500u;job_ready=1;
+    stnc_background_mining_tick();
+    CHECK(connect_calls==1u&&disconnect_calls==0u&&stnc_background_mining_connected());
+
+    /* Endpoint change is one of the explicit reasons to reconnect. */
+    memcpy(config.stratum_host,"stratum2.stn-chain.org",sizeof("stratum2.stn-chain.org"));
+    config.stratum_port=18476u;job_ready=1;clock_ms=3000u;
+    stnc_background_mining_tick();stnc_background_mining_status(&status);
+    CHECK(connect_calls==2u&&disconnect_calls==1u&&status.running);
     CHECK(strlen(observed_address)==69u&&strncmp(observed_address,"stn0_",5u)==0);
 
     clock_ms=32000u;job_ready=0;
     stnc_background_mining_tick();
-    CHECK(compensation_calls==4u);
+    CHECK(compensation_calls==4u&&connect_calls==2u&&disconnect_calls==1u);
 
     /* A transient periodic compensation re-registration failure must not
      * disconnect Stratum, clear current work, or collapse the reported rate. */
     compensation_ok=0;clock_ms=62000u;
     stnc_background_mining_tick();stnc_background_mining_status(&status);
-    CHECK(compensation_calls==5u&&connect_calls==2u&&status.running);
-    CHECK(status.hashrate_hps==25u&&search_calls==4u);
+    CHECK(compensation_calls==5u&&connect_calls==2u&&disconnect_calls==1u&&status.running);
+    CHECK(status.hashrate_hps==25u&&stnc_background_mining_connected());
 
     compensation_ok=1;job_ready=1;clock_ms=67000u;
     stnc_background_mining_tick();stnc_background_mining_status(&status);
-    CHECK(compensation_calls==6u&&connect_calls==2u&&status.running&&search_calls==5u);
+    CHECK(compensation_calls==6u&&connect_calls==2u&&disconnect_calls==1u&&status.running);
 
-    /* Compensation maintenance is a Core lifecycle responsibility. Turning off
-     * Core CPU mining must stop hashing/Stratum without stopping periodic
-     * registration maintenance for an external GPU/ASIC miner. */
+    /* Deliberately turning mining off is a legitimate session teardown. */
     config.mining_enabled=0;clock_ms=68000u;stnc_background_mining_tick();
     stnc_background_mining_status(&status);
-    CHECK(!status.enabled&&!status.running&&compensation_calls==6u);
+    CHECK(!status.enabled&&!status.running&&compensation_calls==6u&&disconnect_calls==2u);
     clock_ms=97000u;stnc_background_mining_tick();
-    CHECK(compensation_calls==7u&&connect_calls==2u&&search_calls==5u);
+    CHECK(compensation_calls==7u&&connect_calls==2u);
 
     stnc_background_mining_shutdown();
 
-    puts("Background mining compensation lifecycle tests passed.");
+    puts("Background mining persistent Stratum lifecycle tests passed.");
     return 0;
 }
