@@ -83,17 +83,26 @@ int stnc_background_mining_init(void)
 static int apply_runtime_config(const stnc_config *config)
 {
     stnc_mining_service_config mining;stnc_mining_backend backend;
+    int endpoint_changed;
     if(config==NULL)return 1;
     backend=configured_backend(config->mining_backend);
     mining.enabled=config->mining_enabled;mining.backend=backend;
     mining.cpu_limit_percent=config->mining_cpu_limit_percent;
+    endpoint_changed=strcmp(config->stratum_host,applied_stratum_host)!=0||
+        config->stratum_port!=applied_stratum_port;
     if(mining.enabled!=applied_enabled||backend!=applied_backend||
        mining.cpu_limit_percent!=applied_cpu_limit){
         if(stnc_mining_service_configure(&mining)!=0)return 1;
     }
-    if(!mining.enabled||backend!=applied_backend||
-       strcmp(config->stratum_host,applied_stratum_host)!=0||config->stratum_port!=applied_stratum_port){
+    /* Transport lifetime is independent of ordinary mining state. Only a
+     * deliberate stop/non-CPU selection or a changed Stratum endpoint tears
+     * down a healthy session. Automatic <-> CPU and CPU-limit changes do not. */
+    if(!mining.enabled||
+       (backend!=STNC_MINING_BACKEND_AUTOMATIC&&backend!=STNC_MINING_BACKEND_CPU)||
+       endpoint_changed){
         clear_stratum_work();
+    }else if(backend!=applied_backend){
+        clear_active_work();
     }
     applied_enabled=mining.enabled;applied_backend=backend;applied_cpu_limit=mining.cpu_limit_percent;
     memcpy(applied_stratum_host,config->stratum_host,sizeof(applied_stratum_host));
@@ -124,23 +133,17 @@ void stnc_background_mining_tick(void)
      * registration even when Core background CPU mining is disabled or when an
      * external GPU/ASIC miner is doing the actual work. */
     if(!compensation_ready){
-        if(compensation_check_ms!=0u&&now<compensation_check_ms){
-            clear_stratum_work();return;
-        }
+        if(compensation_check_ms!=0u&&now<compensation_check_ms)return;
         if(stnc_compensation_ensure()!=0){
             compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RETRY_MS;
             stnc_log_error("Mining compensation destination is unavailable; registration will retry.");
-            clear_stratum_work();return;
+            return;
         }
         compensation_ready=1;
         compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RECHECK_MS;
         stnc_log_info("Mining compensation destination submitted to Chain.");
     }else if(now>=compensation_check_ms){
         if(stnc_compensation_ensure()!=0){
-            /* A periodic re-registration failure does not prove that an already
-             * accepted compensation mapping disappeared. Keep healthy mining
-             * work alive and retry maintenance without converting a transient
-             * Chain admission outage into a mining outage. */
             compensation_check_ms=now+STNC_BACKGROUND_COMPENSATION_RETRY_MS;
             stnc_log_error("Mining compensation destination recheck failed; registration will retry without stopping mining.");
         }else{
@@ -164,8 +167,13 @@ void stnc_background_mining_tick(void)
 
     memset(&job,0,sizeof(job));
     poll_result=stnc_stratum_client_poll_job(&stratum,&job,block,sizeof(block));
-    if(poll_result<0){clear_stratum_work();return;}
+    if(poll_result<0){
+        stnc_log_error("STN-Stratum transport/session failed; reconnecting mining session.");
+        clear_stratum_work();return;
+    }
     if(poll_result==0){
+        /* A new JOB replaces work in place. It is a protocol event, not a
+         * transport lifecycle event. */
         active_job=job;next_nonce=job.initial_nonce;have_job=1;next_work_ms=now;
     }
     if(!have_job)return;
@@ -183,13 +191,14 @@ void stnc_background_mining_tick(void)
     stnc_mining_service_record_rate(attempts,elapsed_ms);
     if(attempts>0u&&elapsed_ms>0u&&
        stnc_stratum_client_progress(&stratum,active_job.work_id,attempts,elapsed_ms)!=0){
-        stnc_log_error("STN-Stratum progress reporting failed; reconnecting mining session.");
+        stnc_log_error("STN-Stratum transport failed while reporting progress; reconnecting mining session.");
         clear_stratum_work();return;
     }
 
     if(result==STNC_MINING_FOUND){
         stnc_log_info("Background mining found qualifying share; submitting through STN-Stratum.");
         if(stnc_stratum_client_submit(&stratum,active_job.work_id,found_nonce,&submit_result)!=0){
+            stnc_log_error("STN-Stratum transport failed while submitting share; reconnecting mining session.");
             clear_stratum_work();return;
         }
         if(submit_result==STNC_STRATUM_RESULT_ACCEPTED)
@@ -197,12 +206,15 @@ void stnc_background_mining_tick(void)
         else if(submit_result==STNC_STRATUM_RESULT_REJECTED)
             stnc_log_info("STN-Stratum reported Chain rejection for qualifying share.");
         else if(submit_result==STNC_STRATUM_RESULT_STALE){
-            stnc_log_info("STN-Stratum reported stale work.");clear_active_work();return;
+            stnc_log_info("STN-Stratum reported stale work; waiting for replacement JOB on the existing session.");
+            clear_active_work();return;
         }else if(submit_result==STNC_STRATUM_RESULT_PROVIDER){
-            stnc_log_info("STN-Stratum provider is temporarily unavailable; current work remains valid.");
+            stnc_log_info("STN-Stratum provider is temporarily unavailable; current session remains connected.");
         }else{
-            stnc_log_error("STN-Stratum rejected the submission protocol.");
-            clear_stratum_work();return;
+            /* A protocol-level result is not evidence that TCP failed. Discard
+             * the affected work and keep the established Stratum session. */
+            stnc_log_error("STN-Stratum returned an unsupported submission result; discarding current work without reconnecting.");
+            clear_active_work();return;
         }
         if(found_nonce==UINT64_MAX)clear_active_work();
         else next_nonce=found_nonce+1u;
@@ -210,7 +222,9 @@ void stnc_background_mining_tick(void)
         if(attempts>UINT64_MAX-next_nonce)clear_active_work();
         else next_nonce+=attempts;
     }else{
-        clear_stratum_work();
+        /* A local mining/search failure invalidates work, not transport. */
+        stnc_log_error("Background mining work failed locally; discarding current work without reconnecting Stratum.");
+        clear_active_work();
     }
 }
 
