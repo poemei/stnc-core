@@ -15,6 +15,10 @@ static HMENU stnc_profile_menu;
 static char stnc_profile_names[STNC_PROFILE_LIST_MAX][STNC_PROFILE_NAME_MAX+1u];
 static size_t stnc_profile_name_count;
 static WNDPROC stnc_base_window_proc;
+static char stnc_contract_identity[70];
+static char stnc_contract_seen[STNC_CONTRACT_LIST_MAX][STNC_CONTRACT_LIST_ADDRESS_SIZE+1u];
+static size_t stnc_contract_seen_count;
+static int stnc_contract_seen_ready;
 
 typedef struct stnc_input_state { HWND window; HWND edit; int done; int accepted; char value[STNC_PROFILE_NAME_MAX+1u]; } stnc_input_state;
 static stnc_input_state *stnc_input_current;
@@ -95,6 +99,34 @@ static void stnc_set_profile_caption(void)
     stnc_profile_info profile;char caption[128];if(ui.w!=NULL&&stnc_profile_active(&profile)==0){snprintf(caption,sizeof(caption),"STNC Core - %s",profile.name);SetWindowTextA(ui.w,caption);}
 }
 
+static void stnc_contract_tracking_reset(void)
+{
+    stnc_contract_identity[0]='\0';stnc_contract_seen_count=0u;stnc_contract_seen_ready=0;memset(stnc_contract_seen,0,sizeof(stnc_contract_seen));
+}
+
+static int stnc_contract_was_seen(const char *address)
+{
+    size_t i;for(i=0u;i<stnc_contract_seen_count;++i)if(strcmp(stnc_contract_seen[i],address)==0)return 1;return 0;
+}
+
+static void stnc_contract_tracking_update(void)
+{
+    size_t i;int arrived=0;char notice[256];const stnc_client_snapshot *s=&ui.snap;
+    if(!s->identity.valid){stnc_contract_tracking_reset();return;}
+    if(strcmp(stnc_contract_identity,s->identity.address)!=0){stnc_contract_tracking_reset();snprintf(stnc_contract_identity,sizeof(stnc_contract_identity),"%s",s->identity.address);}
+    if(!s->network.chain_connected||!s->contracts_available)return;
+    if(!stnc_contract_seen_ready){for(i=0u;i<s->contracts.count&&i<STNC_CONTRACT_LIST_MAX;++i)snprintf(stnc_contract_seen[i],sizeof(stnc_contract_seen[i]),"%s",s->contracts.entries[i].address);stnc_contract_seen_count=s->contracts.count<STNC_CONTRACT_LIST_MAX?s->contracts.count:STNC_CONTRACT_LIST_MAX;stnc_contract_seen_ready=1;return;}
+    for(i=0u;i<s->contracts.count;++i){const char *address=s->contracts.entries[i].address;if(!stnc_contract_was_seen(address)){if(stnc_contract_seen_count<STNC_CONTRACT_LIST_MAX)snprintf(stnc_contract_seen[stnc_contract_seen_count++],sizeof(stnc_contract_seen[0]),"%s",address);arrived++;}}
+    if(arrived>0){snprintf(notice,sizeof(notice),arrived==1?"A new Contract has arrived for this identity.\n\nOpen Tools > Contracts to view it.":"%d new Contracts have arrived for this identity.\n\nOpen Tools > Contracts to view them.",arrived);MessageBoxA(ui.w,notice,"New Contract",MB_OK|MB_ICONINFORMATION);}
+}
+
+static void stnc_clear_contract_form_after_success(HWND h,const char *text)
+{
+    if(h!=field(CONTRACT_RESULT)||text==NULL||strncmp(text,"Contract: ",10)!=0)return;
+    if(strstr(text,"Submission: admitted")==NULL&&strstr(text,"Submission: duplicate")==NULL)return;
+    SetWindowTextA(field(CONTRACT_PARTICIPANTS),"");SetWindowTextA(field(CONTRACT_TERMS),"");SendMessage(field(CONTRACT_TYPE),CB_SETCURSEL,0,0);
+}
+
 static LRESULT CALLBACK stnc_profile_window_proc(HWND w,UINT m,WPARAM wp,LPARAM lp)
 {
     UINT id=LOWORD(wp);
@@ -102,14 +134,14 @@ static LRESULT CALLBACK stnc_profile_window_proc(HWND w,UINT m,WPARAM wp,LPARAM 
         char name[STNC_PROFILE_NAME_MAX+1u];stnc_profile_info profile;
         if(stnc_prompt_name(w,"Create STNC Wallet",name)){
             if(!stnc_profile_name_valid(name)||stnc_profile_create(name,&profile)!=0)MessageBoxA(w,"That wallet name is invalid or already exists.","STNC Core",MB_OK|MB_ICONWARNING);
-            else {if(stnc_profile_name_count<STNC_PROFILE_LIST_MAX){size_t i=stnc_profile_name_count++;memcpy(stnc_profile_names[i],profile.name,strlen(profile.name)+1u);AppendMenuA(stnc_profile_menu,MF_STRING,STNC_MENU_PROFILE_BASE+(UINT)i,profile.name);DrawMenuBar(w);}stnc_set_profile_caption();PostMessage(w,UPDATED,0,0);}
+            else {if(stnc_profile_name_count<STNC_PROFILE_LIST_MAX){size_t i=stnc_profile_name_count++;memcpy(stnc_profile_names[i],profile.name,strlen(profile.name)+1u);AppendMenuA(stnc_profile_menu,MF_STRING,STNC_MENU_PROFILE_BASE+(UINT)i,profile.name);DrawMenuBar(w);}stnc_contract_tracking_reset();stnc_set_profile_caption();PostMessage(w,UPDATED,0,0);}
         }
         return 0;
     }
     if(m==WM_COMMAND&&id>=STNC_MENU_PROFILE_BASE&&id<STNC_MENU_PROFILE_BASE+stnc_profile_name_count){
         size_t index=(size_t)(id-STNC_MENU_PROFILE_BASE);stnc_profile_info profile;
         if(stnc_profile_select(stnc_profile_names[index],&profile)!=0)MessageBoxA(w,"The selected wallet or its corresponding identity is unavailable or invalid.","STNC Core",MB_OK|MB_ICONERROR);
-        else {stnc_set_profile_caption();PostMessage(w,UPDATED,0,0);}
+        else {stnc_contract_tracking_reset();stnc_set_profile_caption();PostMessage(w,UPDATED,0,0);}
         return 0;
     }
     return stnc_base_window_proc!=NULL?CallWindowProcA(stnc_base_window_proc,w,m,wp,lp):DefWindowProcA(w,m,wp,lp);
@@ -130,6 +162,8 @@ static BOOL stnc_gui_set_window_text(HWND h,const char *text)
 {
     char out[4096];size_t used=0u,i;
     if(h==ui.title)stnc_set_profile_caption();
+    if(h==ui.content)stnc_contract_tracking_update();
+    stnc_clear_contract_form_after_success(h,text);
     if(h!=ui.content||ui.page!=P_CONTRACTS)return SetWindowTextA(h,text);
     if(!ui.snap.identity.valid||!ui.snap.network.chain_connected||!ui.snap.contracts_available||ui.snap.contracts.count==0u)return SetWindowTextA(h,"No Contracts associated");
     used=(size_t)snprintf(out,sizeof(out),"Contracts\r\n\r\n");
