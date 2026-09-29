@@ -51,6 +51,10 @@ typedef struct stnc_client_request {
 int stnc_client_read(stnc_client_snapshot *snapshot);
 int stnc_client_execute(const stnc_client_request *request,char *result,size_t capacity);
 int stnc_client_parse_units(const char *text,uint64_t *units);
+/* Accept pasted STNC wallet text, trim surrounding ASCII whitespace and
+ * normalize hexadecimal case. Generated/displayed addresses remain canonical
+ * lowercase; normalization is a client input convenience only. */
+int stnc_client_normalize_wallet_address(const char *address,char normalized[71]);
 int stnc_client_wallet_address_valid(const char *address);
 int stnc_client_set_mining(int enabled);
 #endif
