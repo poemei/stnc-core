@@ -26,6 +26,11 @@ static BOOL stnc_gui_show_window(HWND h,int command)
     int id;BOOL result;
     if(!h)return FALSE;
     id=GetDlgCtrlID(h);
+
+    /* Tools -> Contracts is an identity-owned Contract list, never a lookup UI. */
+    if(id==CONTRACT_LOOKUP_ADDRESS||id==CONTRACT_LOOKUP||id==CONTRACT_LOOKUP_RESULT)
+        command=SW_HIDE;
+
     if(id==CREATE_WALLET&&ui.page==P_WALLET_ADDRESS&&!ui.snap.wallet.key_valid)command=SW_SHOW;
     if(id==CREATE_IDENTITY&&ui.page==P_WALLET_IDENTITY&&!ui.snap.identity.valid)command=SW_SHOW;
     result=ShowWindow(h,command);
@@ -38,19 +43,19 @@ static BOOL stnc_gui_set_window_text(HWND h,const char *text)
 {
     char out[4096];size_t used=0u,i;
     if(h!=ui.content||ui.page!=P_CONTRACTS)return SetWindowTextA(h,text);
-    if(!ui.snap.identity.valid)
-        return SetWindowTextA(h,"Accepted Contracts\r\n\r\nCreate an STN identity first. Contracts are associated with the canonical stn0_ identity.");
-    if(!ui.snap.network.chain_connected)
-        return SetWindowTextA(h,"Accepted Contracts\r\n\r\nChain is disconnected. Contract state is unavailable.");
-    if(!ui.snap.contracts_available)
-        return SetWindowTextA(h,"Accepted Contracts\r\n\r\nContract list is temporarily unavailable from Chain.");
-    used=(size_t)snprintf(out,sizeof(out),"Accepted Contracts for\r\n%s\r\n\r\n",ui.snap.identity.address);
-    if(ui.snap.contracts.count==0u)
-        return SetWindowTextA(h,"Accepted Contracts\r\n\r\nNo accepted Contracts are associated with this identity.");
-    for(i=0u;i<ui.snap.contracts.count&&used<sizeof(out);++i){const stnc_contract_list_entry *e=&ui.snap.contracts.entries[i];int n=snprintf(out+used,sizeof(out)-used,
+
+    if(!ui.snap.identity.valid||!ui.snap.network.chain_connected||!ui.snap.contracts_available||ui.snap.contracts.count==0u)
+        return SetWindowTextA(h,"No Contracts associated");
+
+    used=(size_t)snprintf(out,sizeof(out),"Contracts\r\n\r\n");
+    for(i=0u;i<ui.snap.contracts.count&&used<sizeof(out);++i){
+        const stnc_contract_list_entry *e=&ui.snap.contracts.entries[i];
+        int n=snprintf(out+used,sizeof(out)-used,
             "%s\r\nState: %s   Type: %s   Sequence: %" PRIu64 "\r\n%s",
             e->address,stnc_contract_state_name(e->state),stnc_contract_type_name(e->type),e->sequence,
             i+1u<ui.snap.contracts.count?"\r\n":"");
-        if(n<0||(size_t)n>=sizeof(out)-used)break;used+=(size_t)n;}
+        if(n<0||(size_t)n>=sizeof(out)-used)break;
+        used+=(size_t)n;
+    }
     return SetWindowTextA(h,out);
 }
