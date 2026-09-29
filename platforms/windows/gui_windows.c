@@ -66,10 +66,18 @@ static ATOM stnc_register_class(const WNDCLASSA *source)
     WNDCLASSA c=*source;stnc_base_window_proc=c.lpfnWndProc;c.lpfnWndProc=stnc_profile_window_proc;return RegisterClassA(&c);
 }
 
+static int stnc_message_box(HWND w,LPCSTR text,LPCSTR caption,UINT type)
+{
+    if(text!=NULL&&strcmp(text,"Enter a canonical stnw0_ address and a positive whole-unit amount.")==0)
+        text="Please enter a valid STNC wallet address and an amount greater than zero.";
+    return MessageBoxA(w,text,caption,type);
+}
+
 #undef SS_LEFT
 #define SS_LEFT (0x00000000L | WS_CLIPSIBLINGS)
 #define AppendMenuA stnc_append_menu
 #define RegisterClassA stnc_register_class
+#define MessageBoxA stnc_message_box
 
 static BOOL stnc_gui_show_window(HWND h,int command);
 static BOOL stnc_gui_set_window_text(HWND h,const char *text);
@@ -78,6 +86,7 @@ static BOOL stnc_gui_set_window_text(HWND h,const char *text);
 #include "gui_btc.c"
 #undef SetWindowTextA
 #undef ShowWindow
+#undef MessageBoxA
 #undef RegisterClassA
 #undef AppendMenuA
 
