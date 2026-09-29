@@ -5,6 +5,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include "stnc_profile.h"
+#include "stnc_contract_list.h"
 
 #define STNC_MENU_NEW_WALLET 2100
 #define STNC_MENU_PROFILE_BASE 2200
