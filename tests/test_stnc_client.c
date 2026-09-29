@@ -11,6 +11,7 @@ static stnc_core_peer_status peer;
 static stnc_config config;
 static uint64_t now_ms;
 static int wallet_reads;
+static char submitted_destination[71];
 uint64_t stnc_platform_monotonic_ms(void){return now_ms;}
 int stnc_wallet_store_load(stnc_wallet_key *key){memset(key,0,sizeof(*key));return wallet?0:1;}
 void stnc_wallet_clear(stnc_wallet_key *key){memset(key,0,sizeof(*key));}
@@ -34,7 +35,7 @@ void stnc_log_info(const char *text){(void)text;}
 void stnc_log_warning(const char *text){(void)text;}
 stnc_transaction_acceptance stnc_transaction_status_query(const uint8_t id[32],stnc_transaction_status *status){(void)id;acceptance_checks++;memset(status,0,sizeof(*status));status->height=99u;memset(status->block_id,0x44,32u);status->transaction_position=2u;return acceptance_checks>1?STNC_TRANSACTION_ACCEPTANCE_ACCEPTED:STNC_TRANSACTION_ACCEPTANCE_PENDING;}
 int stnc_transfer_send(const char *destination,uint64_t units,stnc_transfer_result *result)
-{(void)destination;(void)units;if(!wallet)return 1;submitted++;memset(result,0,sizeof(*result));result->submission=submission;return 0;}
+{(void)units;if(!wallet)return 1;submitted++;snprintf(submitted_destination,sizeof(submitted_destination),"%s",destination);memset(result,0,sizeof(*result));result->submission=submission;return 0;}
 const char *stnc_transfer_submission_name(uint16_t value){return value==0?"admitted":"unauthorized";}
 int stnc_contract_status_read(const char *address,stnc_contract_status *status)
 {(void)address;queried++;memset(status,0,sizeof(*status));status->available=queried>1;status->state.sequence=7;return 0;}
@@ -47,20 +48,26 @@ int stnc_contract_create(const stnc_contract_draft_input *input,stnc_contract_cr
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"Client boundary test failed: %d\n",__LINE__);return 1;}}while(0)
 int main(void)
 {
-    static stnc_client_request request;stnc_client_snapshot snapshot;char result[2048];uint64_t units=0;
+    static stnc_client_request request;stnc_client_snapshot snapshot;char result[2048],normalized[71];uint64_t units=0;
     CHECK(stnc_client_parse_units("18446744073709551615",&units)==0&&units==UINT64_MAX);
     CHECK(stnc_client_parse_units("18446744073709551616",&units)!=0);
     CHECK(stnc_client_parse_units("0",&units)!=0&&stnc_client_parse_units("-1",&units)!=0);
     CHECK(stnc_client_parse_units("1.0",&units)!=0&&stnc_client_parse_units(" 1",&units)!=0);
+    CHECK(stnc_client_normalize_wallet_address("  STNW0_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\r\n",normalized)==0);
+    CHECK(strcmp(normalized,"stnw0_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")==0);
+    CHECK(stnc_client_wallet_address_valid("stnw0_2222222222222222222222222222222222222222222222222222222222222222"));
+    CHECK(!stnc_client_wallet_address_valid("stn0_2222222222222222222222222222222222222222222222222222222222222222"));
     CHECK(stnc_client_set_mining(1)!=0&&!enabled);wallet=1;
     CHECK(stnc_client_set_mining(1)==0&&enabled);CHECK(stnc_client_set_mining(0)==0&&!enabled);
     CHECK(stnc_client_set_mining(2)!=0);
     request.operation=STNC_CLIENT_SEND;strcpy(request.address,"stnw0_2222222222222222222222222222222222222222222222222222222222222222");strcpy(request.units,"7");
     CHECK(stnc_client_execute(&request,result,sizeof(result))!=0&&submitted==0);
     request.confirmed=1;CHECK(stnc_client_execute(&request,result,sizeof(result))==0&&submitted==1);
+    CHECK(strcmp(submitted_destination,"stnw0_2222222222222222222222222222222222222222222222222222222222222222")==0);
     CHECK(strstr(result,"not supplied")&&strstr(result,"Accepted balance: unavailable"));
     submission=STNC_STNC_SUBMISSION_UNAUTHORIZED;CHECK(stnc_client_execute(&request,result,sizeof(result))!=0&&strstr(result,"Rejected"));
-    request.address[6]='A';CHECK(stnc_client_execute(&request,result,sizeof(result))!=0&&submitted==2);
+    strcpy(request.address," STNW0_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA ");submission=STNC_STNC_SUBMISSION_ADMITTED;CHECK(stnc_client_execute(&request,result,sizeof(result))==0);CHECK(strcmp(submitted_destination,"stnw0_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")==0);
+    strcpy(request.address,"stnw0_2222222222222222222222222222222222222222222222222222222222222222");request.address[6]='g';CHECK(stnc_client_execute(&request,result,sizeof(result))!=0&&submitted==3);
     CHECK(stnc_client_read(&snapshot)==0&&snapshot.activity_count==5&&!snapshot.wallet.balance_available&&!snapshot.contracts_available);
     request.operation=STNC_CLIENT_CONTRACT_LOOKUP;
     CHECK(stnc_client_execute(&request,result,sizeof(result))!=0);
