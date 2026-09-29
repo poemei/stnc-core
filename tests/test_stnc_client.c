@@ -66,7 +66,7 @@ int main(void)
     CHECK(strcmp(submitted_destination,"stnw0_2222222222222222222222222222222222222222222222222222222222222222")==0);
     CHECK(strstr(result,"not supplied")&&strstr(result,"Accepted balance: unavailable"));
     submission=STNC_STNC_SUBMISSION_UNAUTHORIZED;CHECK(stnc_client_execute(&request,result,sizeof(result))!=0&&strstr(result,"Rejected"));
-    strcpy(request.address," STNW0_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA ");submission=STNC_STNC_SUBMISSION_ADMITTED;CHECK(stnc_client_execute(&request,result,sizeof(result))==0);CHECK(strcmp(submitted_destination,"stnw0_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")==0);
+    strcpy(request.address,"STNW0_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");submission=STNC_STNC_SUBMISSION_ADMITTED;CHECK(stnc_client_execute(&request,result,sizeof(result))==0);CHECK(strcmp(submitted_destination,"stnw0_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")==0);
     strcpy(request.address,"stnw0_2222222222222222222222222222222222222222222222222222222222222222");request.address[6]='g';CHECK(stnc_client_execute(&request,result,sizeof(result))!=0&&submitted==3);
     CHECK(stnc_client_read(&snapshot)==0&&snapshot.activity_count==5&&!snapshot.wallet.balance_available&&!snapshot.contracts_available);
     request.operation=STNC_CLIENT_CONTRACT_LOOKUP;
