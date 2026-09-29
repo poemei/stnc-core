@@ -37,9 +37,9 @@ int stnc_profile_paths(const char *name,stnc_profile_info *profile)
 
 static int active_write(const char *name)
 {
-    char path[STNC_PROFILE_PATH_MAX],text[STNC_PROFILE_NAME_MAX+2u];size_t n;
-    if(!stnc_profile_name_valid(name)||app_file(ACTIVE_FILE,path)!=0)return 1;n=strlen(name);memcpy(text,name,n);text[n++]='\n';
-    return stnc_platform_write_file_replace(path,(const uint8_t *)text,n);
+    char path[STNC_PROFILE_PATH_MAX];FILE *f;size_t n;
+    if(!stnc_profile_name_valid(name)||app_file(ACTIVE_FILE,path)!=0)return 1;n=strlen(name);f=fopen(path,"wb");if(f==NULL)return 1;
+    if(fwrite(name,1,n,f)!=n||fputc('\n',f)==EOF||fflush(f)!=0){fclose(f);return 1;}return fclose(f)==0?0:1;
 }
 
 int stnc_profile_active(stnc_profile_info *profile)
