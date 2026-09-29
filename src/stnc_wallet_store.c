@@ -4,23 +4,19 @@
 
 #include "stnc_wallet_store.h"
 #include "stnc_platform.h"
+#include "stnc_profile.h"
 #include <stdio.h>
 #include <string.h>
 
-#define STNC_WALLET_FILE "wallet.key"
 #define STNC_WALLET_FILE_MAGIC "STNW"
 #define STNC_WALLET_FILE_VERSION 1u
-#define STNC_WALLET_PATH_MAX 1024u
 #define STNC_WALLET_FILE_SIZE 69u
 
-static int wallet_path(char path[STNC_WALLET_PATH_MAX])
+static int wallet_path(char path[STNC_PROFILE_PATH_MAX])
 {
-    size_t n;
-    if(stnc_platform_get_app_directory(path,STNC_WALLET_PATH_MAX)!=0)return 1;
-    n=strlen(path);
-    if(n+1u+strlen(STNC_WALLET_FILE)+1u>STNC_WALLET_PATH_MAX)return 1;
-    path[n++]=stnc_platform_path_separator();memcpy(path+n,STNC_WALLET_FILE,strlen(STNC_WALLET_FILE)+1u);
-    return 0;
+    stnc_profile_info profile;
+    if(path==NULL||stnc_profile_active(&profile)!=0)return 1;
+    memcpy(path,profile.wallet_path,strlen(profile.wallet_path)+1u);return 0;
 }
 int stnc_wallet_store_exists_at(const char *path)
 {
@@ -67,18 +63,18 @@ int stnc_wallet_store_load_at(const char *path,stnc_wallet_key *key)
 
 int stnc_wallet_store_exists(void)
 {
-    char path[STNC_WALLET_PATH_MAX];
+    char path[STNC_PROFILE_PATH_MAX];
     return wallet_path(path)==0?stnc_wallet_store_exists_at(path):0;
 }
 
 int stnc_wallet_store_create(stnc_wallet_key *key)
 {
-    char path[STNC_WALLET_PATH_MAX];
+    char path[STNC_PROFILE_PATH_MAX];
     return wallet_path(path)==0?stnc_wallet_store_create_at(path,key):1;
 }
 
 int stnc_wallet_store_load(stnc_wallet_key *key)
 {
-    char path[STNC_WALLET_PATH_MAX];
+    char path[STNC_PROFILE_PATH_MAX];
     return wallet_path(path)==0?stnc_wallet_store_load_at(path,key):1;
 }
