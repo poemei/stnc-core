@@ -5,6 +5,7 @@
 
 #define STNC_PROFILE_NAME_MAX 48u
 #define STNC_PROFILE_PATH_MAX 1024u
+#define STNC_PROFILE_LIST_MAX 32u
 
 typedef struct stnc_profile_info {
     char name[STNC_PROFILE_NAME_MAX + 1u];
@@ -17,6 +18,7 @@ typedef struct stnc_profile_info {
 int stnc_profile_active(stnc_profile_info *profile);
 int stnc_profile_create(const char *name,stnc_profile_info *profile);
 int stnc_profile_select(const char *name,stnc_profile_info *profile);
+int stnc_profile_list(stnc_profile_info *profiles,size_t capacity,size_t *count);
 int stnc_profile_name_valid(const char *name);
 int stnc_profile_paths(const char *name,stnc_profile_info *profile);
 
