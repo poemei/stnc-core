@@ -21,7 +21,8 @@ int main(void){char temp[MAX_PATH],dir[MAX_PATH]={0},path[MAX_PATH],exe[MAX_PATH
  menu_command(2002);CHECK(wait_visible(103)==0);CHECK(stays_visible(103,2500)==0);
  menu_command(2008);CHECK(wait_visible(107)==0);CHECK(wait_visible(108)==0);CHECK(wait_control(107,FALSE)==0);CHECK(stays_visible(107,2500)==0);CHECK(stays_visible(108,2500)==0);
  menu_command(2003);CHECK(wait_visible(113)==0);CHECK(wait_visible(114)==0);CHECK(wait_visible(112)==0);CHECK(stays_visible(113,2500)==0);CHECK(stays_visible(114,2500)==0);CHECK(stays_visible(112,2500)==0);
- menu_command(2006);CHECK(wait_visible(118)==0);CHECK(wait_visible(119)==0);CHECK(wait_visible(120)==0);CHECK(stays_visible(118,2500)==0);CHECK(stays_visible(119,2500)==0);CHECK(stays_visible(120,2500)==0);
+ /* Tools -> Contracts is an identity-owned dashboard. Lookup controls must never be visible. */
+ menu_command(2006);CHECK(wait_hidden(118)==0);CHECK(wait_hidden(119)==0);CHECK(wait_hidden(120)==0);
  /* Create persistent wallet first and wait for the create control to disappear before issuing the identity request. */
  menu_command(2001);click(102);CHECK(wait_hidden(102)==0);snprintf(path,sizeof(path),"%s\\wallet.key",dir);CHECK(GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES);
  menu_command(2002);click(103);CHECK(wait_hidden(103)==0);snprintf(path,sizeof(path),"%s\\identity.key",dir);CHECK(GetFileAttributesA(path)!=INVALID_FILE_ATTRIBUTES);
